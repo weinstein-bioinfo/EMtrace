@@ -17,7 +17,7 @@
   - [Installing host and background filters](#installing-host-and-background-filters)
   - [Creating custom databases and filters](#creating-custom-databases-and-filters)
 - [Running EMtrace (GUI)](#running-emtrace-gui)
-  - [Creating a project](#creating-a-project)
+  - [Creating a job](#creating-a-job)
   - [Configuring settings](#configuring-settings)
 - [Annotation strategies and databases](#annotation-strategies-and-databases)
   - [Virus surveillance studies](#virus-surveillance-studies)
@@ -44,7 +44,7 @@ A typical analysis proceeds through the following stages:
 1. **Quality preprocessing** — adapter trimming (*Porechop* / *Porechop_ABI*) and
    quality- and length-based filtering (*Chopper*).
 2. **Host and background depletion** — alignment-based removal of host and
-   background reads against one or more reference genomes (*Minimap2* or *BWA-MEM*).
+   background reads against one or more reference genomes (*Minimap2*).
 3. **Taxonomic annotation** — read classification against curated reference
    databases using *Minimap2* and *DIAMOND*, in up to two
    chained rounds.
@@ -83,7 +83,7 @@ layout such as:
 ```
 EMtrace/                 # the application (source or bundle)
 EMtrace-databases/       # annotation databases and host/background filters
-EMtrace-projects/        # one subdirectory per sequencing run / project
+EMtrace-projects/        # one subdirectory per project (study), one folder per sample
 ```
 
 The location of the reference data is provided to the pipeline through the
@@ -98,9 +98,7 @@ export EMTRACE_DB_DIR=/path/to/EMtrace-databases
 GUI users do not need to set this variable manually. In the desktop
 application, open the **Databases** manager and click **Browse** next to the
 `EMTRACE_DB_DIR` field to choose the database root. The selection is saved to
-a per-user configuration file (on macOS,
-`~/Library/Application Support/EMtrace/user_config.yaml`; on Windows,
-`%APPDATA%\EMtrace\user_config.yaml`) and applied automatically on all
+a per-user configuration file and applied automatically on all
 subsequent runs.  
 An `EMTRACE_DB_DIR` value set in the shell environment takes precedence over
 the stored setting.
@@ -184,7 +182,6 @@ Pydantic, and others) are installed automatically by `pip`.
 | *Porechop* / *Porechop_ABI* | Adapter trimming | Preprocessing | https://github.com/bonsai-team/Porechop_ABI |  https://doi.org/10.1101/2022.07.07.499093 |
 | *SAMtools*, *BCFtools* | Consensus assembly | Assembly step | http://www.htslib.org/ | https://doi.org/10.1093/gigascience/giab008 |
 | *[BLAST+]* | Nucleotide/protein classification | BLAST-based strategies [Optional] | https://blast.ncbi.nlm.nih.gov/ | https://doi.org/10.1186/1471-2105-10-421 |
-| *[BWA]* | Alternative host filtering / assembly mapping | [Optional] | https://github.com/lh3/bwa | https://arxiv.org/abs/1303.3997 |
 | *[Medaka]* | Consensus polishing (on by default; skipped with a warning if missing) | Assembly step [Optional] | https://github.com/nanoporetech/medaka | — |
 
 
@@ -244,12 +241,18 @@ Supported reference databases include:
 |------|--------|-----------|-------------|--------------|
 | `minimap.refseq.abv.1g` | Minimap2 | ~23 | RefSeq archaeal, bacterial, and viral genomes, one genome per bacterial/archaeal genus (all viruses retained); distributed as a prebuilt index. | Surveillance / clinical identification of known viruses and bacterial genera. |
 | `minimap.refseq.abv` | Minimap2 | ~28 (FASTA) | Full RefSeq archaeal, bacterial, and viral genomes (all representative species). Distributed as an un-indexed FASTA and indexed at runtime. | Adds bacterial species-level resolution, at the cost of a large Minimap2 index (≈70 GB, estimated, built at runtime). |
+| `minimap.refseq.vi` | Minimap2 | ~2.2 | RefSeq viral genomes; distributed as a prebuilt index. | Fast, virus-only first-pass classification; the default assembly database for automatic reference selection. |
 | `minimap.genbank.vi+refseq.abv.1g` | Minimap2 | ~38 | GenBank viral sequences combined with the `refseq.abv.1g` set; distributed as a prebuilt index. | Viral metagenomics. |
 | `blastn.refseq.abv` | BLASTN | ~7 | BLASTN index of the `refseq.abv` set (see above). | As `minimap.refseq.abv`, for slower but more sensitive BLASTN search. |
 | `blastn.refseq.abv.1g` | BLASTN | ~2.3 | BLASTN index of the `refseq.abv.1g` set (see above). | As `minimap.refseq.abv.1g`, for slower but more sensitive BLASTN search. |
+| `blastn.refseq.vi` | BLASTN | ~0.14 | BLASTN index of RefSeq viral genomes. | Second-round confirmation of viral reads (`vi.2round`-type strategies). |
+| `diamond.nrclust.vi` | DIAMOND | ~3.1 | Clustered NCBI nr viral proteins. | Protein-level detection of divergent viruses (`vi.chain1`). |
+| `diamond.uniref.vi` | DIAMOND | ~1.6 | UniRef100 viral proteins. | Protein-level detection of divergent viruses (`vi.chain2`; used in the EMtrace manuscript). |
+| **16S rRNA databases** | | | | |
 | `minimap.silva` | Minimap2 | ~6.3 | SILVA SSU rRNA reference sequences (SSURef). | SILVA SSU rRNA ribosomal profiling. |
-| `blastn.silva` | BLASTN | ~1.4 | BLASTN index of the SILVA SSU rRNA reference (SSURef). | SILVA SSU rRNA ribosomal profiling. |
-| `diamond.*` | DIAMOND | — | *[Planned]* Protein reference databases for translated (DIAMOND blastp) search. | *[Planned]* Protein-level detection of divergent viruses. |
+| `minimap.rrnDB.dedup` | Minimap2 | ~0.4 | rrnDB 5.10 16S rRNA genes, de-duplicated (one representative per named species, else genus or family, per cluster of identical sequences; 78,966 sequences). | 16S profiling with NCBI taxonomy (`16S.rrnDB.dedup`; the 16S profile default). |
+| `minimap.emu` | Minimap2 | ~0.24 | Emu's own 16S database (rrnDB 5.6 + NCBI 16S RefSeq, one sequence per species; 49,243 sequences), unchanged. | 16S profiling directly comparable to Emu (`16S.emu`). |
+
 
 <a id="installing-host-and-background-filters"></a>
 ### Installing host and background filters
@@ -282,22 +285,40 @@ The window is organised into three panels: a **step list** (left), a **content
 area** with dashboard, configuration, plots, and tables (centre), and a **live
 log** (bottom).
 
-<a id="creating-a-project"></a>
-### Creating a project
+<a id="creating-a-job"></a>
+### Creating a job
 
-A project corresponds to one sample or sequencing run.
-From the top menu select *New Job*. Select an input FASTQ
-file (or a directory of FASTQ files for real-time monitoring), choose an output
-directory, and provide a sample name. EMtrace creates a structured output
-directory for reads, annotation, assembly, and reports.
+A **job** analyses one sample: one FASTQ file, typically one barcode of a
+sequencing run, or a directory of FASTQ files for real-time monitoring. From the
+top menu select **New Job**, select the input, choose a results directory and give
+the sample name. EMtrace creates `<results directory>/<sample name>/` with
+subdirectories for reads, annotation, assembly and reports.
 
-**NOTE**: *Reads R2 (paired-end)* are only provided for reference-based assembly of Illumina reads. For Nanopore projects this can be left empty.
+A **project** is simply a results directory shared by several jobs. Depending on
+the study design, it can hold many samples from one sequencing run, or samples
+from several runs. For example:
+
+```
+EMtrace-projects/
+└── surveillance-2026/          # project
+    ├── run01_barcode01/        # job (sample)
+    ├── run01_barcode02/
+    └── run02_barcode01/
+```
+
+Use sample names that are unique within the project, e.g. by including the run
+name, because each job writes to a folder named after its sample. The
+cross-sample summaries (`emtrace batch-summary`, `batch-taxa`,
+`batch-abundance`; see [Example 1](#example-1-a-virus-surveillance-run)) take the
+project directory and report all samples in it together, across runs.
+
+**NOTE**: *Reads R2 (paired-end)* are only provided for reference-based assembly of Illumina reads. For Nanopore jobs this can be left empty.
 
 <a id="configuring-settings"></a>
 ### Configuring settings
 
 Pipeline parameters are edited in the configuration panel and saved with the
-project. Every parameter has a sensible default; the groups below describe those
+job. Every parameter has a sensible default; the groups below describe those
 most often adjusted. The complete set is documented in the bundled
 `default.yaml`.
 
@@ -325,9 +346,8 @@ in the pipeline.
 - *Host and background filtering* — depletion of non-target reads by alignment
   against one or more reference genomes, given as configuration keys or FASTA
   paths (comma-separated and applied in turn — e.g. a host genome together with a
-  vector genome). The aligner is *Minimap2* (default) or *BWA-MEM*, and a read is
-  removed once its alignment score reaches the configured minimum (`m` / `s` for
-  *Minimap2*; `min_score` / `min_mapq` for *BWA-MEM*). For *Minimap2* a reusable
+  vector genome). Reads are aligned with *Minimap2*, and a read is removed once
+  its alignment score reaches the configured minimum (`m` / `s`). A reusable
   `.mmi` index is built and cached alongside each genome.
 
 **Annotation.** Reads are classified against the databases configured for round 1
@@ -418,8 +438,8 @@ species-level assignment can optionally be excluded (`exclude_no_species`).
   histograms.
 
 Click **Save Config** from the top menu to write your settings to a `config.yaml`
-in the project directory; a project `config.yaml` takes priority over the bundled
-defaults.
+in the job's directory; when the job is opened again, its `config.yaml` takes
+priority over the bundled defaults.
 
 ---
 
@@ -463,11 +483,26 @@ uncharacterized viruses.
 **Tissue and vector samples.**
 
 - *Background filtering:* the host/carrier genome(s), as above.
-- *Annotation database:* `minimap.genbank_vi+refseq.abv.1g` — a broader index
-  combining GenBank viral sequences with the RefSeq set, improving recall for
-  divergent taxa at some cost in runtime. Protein-level searches
-  (`diamond.uniref.vi`) in a second annotation round further increase
-  sensitivity for highly divergent viruses.
+- *Annotation strategy:* `--anns vi.chain3` (recommended). It chains a
+  nucleotide search to a protein search: reads are first searched against
+  `minimap.genbank.vi+refseq.abv.1g`, a broad index that adds GenBank viral
+  sequences to the RefSeq set, and the reads it leaves unclassified are translated
+  into ORFs (*orfipy*) and searched with *DIAMOND* against viral proteins
+  (`diamond.uniref.vi`), which tolerates greater genetic distance.
+
+Predefined chained strategies (all run in annotation round 1; the protein search
+receives only the reads the nucleotide search left unclassified):
+
+| Strategy (`--anns`) | Nucleotide search | Protein search | Use |
+|:--|:--|:--|:--|
+| `vi.chain3` | `minimap.genbank.vi+refseq.abv.1g` (~38 GB) | `diamond.uniref.vi` | Discovery: broadest nucleotide coverage of known viral diversity |
+| `vi.chain2` | `minimap.refseq.abv.1g` (~23 GB) | `diamond.uniref.vi` | Divergent viruses with a smaller index; benchmarked in the EMtrace manuscript |
+| `vi.chain1` | `minimap.refseq.abv` (full RefSeq, indexed at runtime) | `diamond.nrclust.vi` | Protein search against clustered NCBI nr viral proteins |
+
+<br>
+
+DIAMOND hits on short ORFs score low; the manuscript used `--min_diamond_bits 80`
+(the default bitscore threshold is 200).
 
 **Feces / environmental samples.**
 
@@ -521,11 +556,13 @@ The run produces, under
 
 #### Annotation tables (`annotation/`)
 
-The annotation step writes tab-separated tables of per-read hits. `annot1.tsv`
-and `annot2.tsv` hold the merged results of annotation rounds 1 and 2; a
-per-database table `annot{round}.{db}.tsv` is also written after each individual
-search, so partial results are retained if a later search in the chain fails.
-All share the same column schema:
+The annotation step writes tab-delimited tables of per-read hits. `annot1.tsv`
+holds all hits of the annotation; most analyses use this single annotation round.
+Each search also writes its own table, `annot1.<database>.tsv` (for example
+`annot1.minimap.refseq.abv.1g.tsv`). In a chained strategy such as `vi.chain2`
+(Minimap2, then DIAMOND), this keeps the results of the first search even if a
+later search fails. An optional second annotation round (`--ann2`) writes the
+same files with the prefix `annot2`. All tables share the same column schema:
 
 | Column | Description |
 |--------|-------------|
@@ -606,7 +643,7 @@ pipeline:
 |--------|-------------|
 | `Sample` | Sample name. |
 | `taxid` | NCBI/SILVA taxonomy ID. |
-| `readn` | Reads assigned to the taxon. |
+| `readn` | Reads assigned to the taxon: EM-adjusted counts (`readn_em`, rounded to whole reads), as benchmarked; raw read counts where `readn_em` is not available. |
 | `prob` | EM-estimated relative abundance. |
 | `organism` | Scientific name. |
 | `species` | Species-rank lineage name. |
@@ -650,26 +687,32 @@ emtrace run --reads barcode01.fastq.gz --sample barcode01 \
 
 **Pre-building host-filter indices.** When background filtering with *Minimap2*
 (`bgfilter.minimap.save_mmi_index: true`), the host genome is indexed to a `.mmi`
-file on first use and reused thereafter. Building this index inside many parallel
-jobs (e.g. an HPC array job) is wasteful and can corrupt the shared index, so for
-large collections build the indices **once, serially, before** launching the
-array:
+file on first use and reused thereafter. For a large collection run as many
+parallel jobs (e.g. an HPC array job), build the indices once, before launching
+the jobs:
 
 ```bash
 emtrace databases --build-index hostdbs --config emtrace.config.yaml
 ```
 
 This downloads each configured host genome (if not already present), concatenates
-it, and builds the `.mmi` index at the exact path the run expects. Pass a single
+it, and builds the `.mmi` index at the exact path the runs expect. Pass a single
 host key (e.g. `--build-index Homo_sapiens`) to build just one, and `--force` to
-rebuild an existing index. Subsequent runs then reuse the prebuilt index without
-rebuilding. (The pipeline also guards against concurrent in-run builds, but
-pre-building avoids the redundant work entirely.)
+rebuild an existing index.
+
+Without this step the first jobs build the index themselves. This is safe: an
+index is written under a temporary name and only appears once complete, and
+concurrent jobs wait for one build and then reuse it. But every waiting job holds
+its slot (and memory) meanwhile, and on file systems without file locking (some
+network file systems) each job builds its own copy.
 
 Other subcommands:
 
-- `emtrace databases` — list and install reference databases; pre-build
-  host-filter indices with `--build-index KEY|hostdbs`.
+- `emtrace databases --list` / `--install KEY` — list configured databases and
+  their install status, and download and install a database.
+- `emtrace databases --build-index KEY` — pre-build the *Minimap2*
+  `.mmi` index for one host filter (`KEY`) or for all configured host filters
+  (`--build-index hostdbs`); see *Pre-building host-filter indices* above.
 - `emtrace batch-summary` / `batch-taxa` — cross-sample QC and taxonomic
   summaries.
 - `emtrace batch-abundance RESDIR -o OUTDIR` — cross-sample OTU/feature
@@ -677,8 +720,10 @@ Other subcommands:
   (bacteria, bacteriophages, viruses, invertebrates_parasites,
   invertebrates_other). Each table has `species` + `taxid` as the first two
   columns and a `taxpath` lineage as the last. Options: `--value
-  readn|prob|both` (read counts and/or the EM assignment probability — *not* a
-  p-value; default `both`); `--xlsx` to also write a single styled Excel
+  readn|prob|both` (read counts and/or the EM assignment probability; default
+  `both`). Read counts are the EM-adjusted counts (`readn_em`, rounded to whole
+  reads), as benchmarked; raw `readn` is used where `readn_em` is not available.
+  `--xlsx` to also write a single styled Excel
   workbook of the read-count tables (one sheet per division, header rotated,
   compact sample columns); `--config FILE` to override the invertebrate
   parasite genus allowlist via `report.parasite_genera`.

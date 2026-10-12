@@ -14,8 +14,7 @@ Full documentation is available in [docs/UserGuide.v1.0.md](docs/UserGuide.v1.0.
   and quality- and length-based filtering with *Chopper*, with per-stage read
   statistics (read counts, length distributions, N50).
 - **Host and background depletion** — alignment-based removal of host and
-  background reads with *Minimap2* or *BWA-MEM* against one or more reference
-  genomes.
+  background reads with *Minimap2* against one or more reference genomes.
 - **Taxonomic annotation** — read classification with *Minimap2*,
   *BLASTN* / *BLASTP*, and *DIAMOND* (BLASTX / BLASTP, with *orfipy* ORF
   detection), organised into up to two configurable, chained annotation rounds;
@@ -26,8 +25,8 @@ Full documentation is available in [docs/UserGuide.v1.0.md](docs/UserGuide.v1.0.
 - **Abundance estimation** — expectation–maximization (EM) estimation of
   per-taxon relative abundances from ambiguously assigned reads.
 - **Reference-based assembly** — consensus assembly with references suggested
-  from annotation hits (*Minimap2* / *BWA-MEM* alignment, *SAMtools*,
-  *BCFtools* consensus).
+  from annotation hits (*Minimap2* alignment, *SAMtools* / *BCFtools* consensus,
+  *Medaka* polishing).
 - **Curated databases** — RefSeq- and GenBank-derived databases supporting
   offline metagenomic, clinical, and surveillance applications, with built-in
   download and management.
@@ -61,7 +60,7 @@ Self-contained macOS and Windows bundles are attached to each
 signed, so the operating system warns on first launch; see
 [Opening the app](docs/UserGuide.v1.0.md#opening-the-app).
 
-Databases, optional tools (BLAST+, BWA, Medaka) and the GUI extra are described in
+Databases, optional tools (BLAST+, Medaka) and the GUI extra are described in
 the [User Guide](docs/UserGuide.v1.0.md#installing-emtrace).
 
 ## License

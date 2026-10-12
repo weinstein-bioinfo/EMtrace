@@ -1094,7 +1094,8 @@ def batch_taxa_cmd(
     """Cross-sample species abundance table, filtered by target organism type.
 
     Reads reports/abund_table.tsv from each subdirectory of RESDIR and
-    produces one row per taxon per sample.  Use --target to restrict to
+    produces one row per taxon per sample; readn is the EM-adjusted read
+    count (readn_em, rounded; raw readn where missing).  Use --target to restrict to
     Viruses (vi), Bacteria (ba), Phages (ph), or Invertebrates (inv;
     eukaryotic parasites/pathogens such as protozoa and helminths, excluding
     fungi).
@@ -1132,7 +1133,8 @@ def batch_taxa_cmd(
     type=click.Choice(["readn", "prob", "both"]),
     default="both",
     show_default=True,
-    help="Which matrices to write: readn=read counts, prob=EM probability, both.",
+    help="Which matrices to write: readn=EM-adjusted read counts (raw readn "
+         "where readn_em is missing), prob=EM probability, both.",
 )
 @click.option(
     "--xlsx",
@@ -1170,8 +1172,8 @@ def batch_abundance_cmd(
     one table per division group (bacteria, bacteriophages, viruses,
     invertebrates_parasites, invertebrates_other) under OUTDIR. Samples are
     ordered by batch; species rows by total read count. Two matrices per group:
-    read counts (.counts.csv) and the EM assignment probability (.prob.csv;
-    NOT a statistical p-value).
+    EM-adjusted read counts (.counts.csv; readn_em, raw readn where missing)
+    and the EM assignment probability (.prob.csv; NOT a statistical p-value).
     """
     from emtrace.batch.abundance import build_abundance, write_abundance_xlsx
 

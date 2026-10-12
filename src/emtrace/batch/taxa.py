@@ -3,6 +3,8 @@
 Ports LazypipeX ``batch_abund_summary.pl`` to Python.
 Reads ``reports/abund_table.tsv`` from each sample subdirectory and
 produces one row per taxon per sample, filtered by ``--target vi/ba/ph/inv``.
+``readn`` is the EM-adjusted read count (``readn_em``, rounded); raw ``readn``
+where ``readn_em`` is missing (see :func:`em_read_counts`).
 """
 
 from __future__ import annotations
@@ -97,6 +99,22 @@ def load_abund_table(sample_dir: Path) -> pd.DataFrame:
         return pd.DataFrame()
 
 
+def em_read_counts(df: pd.DataFrame, sample_name: str = "") -> pd.Series:
+    """Per-taxon read counts: EM-adjusted ``readn_em`` rounded to whole reads.
+
+    Falls back to raw ``readn`` for rows with no ``readn_em`` value, and for
+    whole tables written before the ``readn_em`` column existed.
+    """
+    raw = pd.to_numeric(df["readn"], errors="coerce")
+    if "readn_em" in df.columns:
+        em = pd.to_numeric(df["readn_em"], errors="coerce")
+    else:
+        em = pd.Series(float("nan"), index=df.index)
+    if em.isna().all():
+        logger.info("%s: no readn_em values, using raw readn", sample_name)
+    return em.round().where(em.notna(), raw).fillna(0).astype(int)
+
+
 def filter_target(df: pd.DataFrame, target: str) -> pd.DataFrame:
     """Filter rows by target organism type using the division column."""
     if df.empty or "division" not in df.columns:
@@ -144,6 +162,8 @@ def build_taxa_summary(
             logger.info("%s: no rows after filtering for target '%s'", sample_name, target)
             continue
 
+        df = df.copy()
+        df["readn"] = em_read_counts(df, sample_name)
         df.insert(0, "Sample", sample_name)
         parts.append(df)
 

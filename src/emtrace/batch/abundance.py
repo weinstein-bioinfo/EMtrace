@@ -13,7 +13,10 @@ It is split here using a curated genus allowlist (``PARASITE_GENERA``) into a
 ``parasites`` group (veterinary/medical pathogens) and an ``other`` group.
 
 Two value matrices are emitted per group:
-  * counts — raw read counts (``readn``)
+  * counts — EM-adjusted read counts (``readn_em``, the EM-expected reads,
+             rounded to whole reads); raw ``readn`` where ``readn_em`` is
+             missing (tables written before the EM column existed, or taxa
+             without an EM estimate)
   * prob   — EMtrace's EM assignment probability (``prob``); this is NOT a
              statistical p-value.
 
@@ -29,7 +32,7 @@ from typing import Dict, Iterable, List, Optional
 
 import pandas as pd
 
-from emtrace.batch.taxa import find_sample_dirs, load_abund_table, _natural_key
+from emtrace.batch.taxa import em_read_counts, find_sample_dirs, load_abund_table, _natural_key
 
 logger = logging.getLogger("emtrace.batch.abundance")
 
@@ -178,7 +181,7 @@ def build_abundance(
         if df.empty:
             continue
         df["Sample"] = sample_name
-        df["readn"] = pd.to_numeric(df["readn"], errors="coerce").fillna(0).astype(int)
+        df["readn"] = em_read_counts(df, sample_name)
         df["prob"] = pd.to_numeric(df["prob"], errors="coerce")
         for col in _RANK_COLS + ("taxid",):
             if col not in df.columns:

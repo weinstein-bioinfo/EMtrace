@@ -121,11 +121,10 @@ annotation:
     vi.2round1g:     "--ann1 minimap.refseq.vi --ann2 vi:blastn.refseq.abv.1g"
     vi.chain1:       "--ann1 minimap.refseq.abv,diamond.nrclust.vi"
     vi.chain2:       "--ann1 minimap.refseq.abv.1g,diamond.uniref.vi"
+    vi.chain3:       "--ann1 minimap.genbank.vi+refseq.abv.1g,diamond.uniref.vi"
     16S.silva:       "--ann1 minimap.silva"
     16S.rrnDB:       "--ann1 minimap.rrnDB"
     16S.rrnDB.dedup: "--ann1 minimap.rrnDB.dedup"
-    16S.refseq:      "--ann1 minimap.refseq16S"
-    16S.chain1:      "--ann1 minimap.rrnDB,minimap.refseq16S"
     16S.emu:         "--ann1 minimap.emu"
 
 # em (EM abundance estimation)
@@ -357,7 +356,7 @@ databases:
   #  db: $EMTRACE_DB_DIR/blastp.uniref100.vi
   #  url: "https://a3s.fi/swift/v1/lazypipe-db/2026/blastp.uniref100.vi.v2026_01.tar.gz"
   diamondp.uniref100.abv:
-    db:     "$databases/diamond.uniref100.abv.2024_11_27.dmnd"
+    db:     "$EMTRACE_DB_DIR/diamond.uniref100.abv.2024_11_27.dmnd"
     name:   "uniref100.abv.2024_11_27"
     search: "diamondp"
     url:    "https://a3s.fi/lazypipe-db/diamond.uniref100.abv.2024_11_27.dmnd.tar.gz"
