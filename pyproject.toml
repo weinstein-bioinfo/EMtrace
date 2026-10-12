@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "emtrace"
+version = "1.0.0"
+description = "Offline, real-time nanopore metagenomics: read classification, EM abundance estimation and reference-based consensus assembly"
+readme = "README.md"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE", "COPYRIGHT"]
+authors = [{ name = "Ilja Weinstein" }]
+requires-python = ">=3.10"
+dependencies = [
+    "biopython>=1.81",
+    "click>=8.1.0",
+    "colorlog>=6.7.0",
+    "numpy>=1.24.0",
+    "orfipy>=0.0.4",
+    "pandas>=2.0.0",
+    "pydantic>=2.0.0",
+    "PyYAML>=6.0",
+    "rich>=13.3.0",
+    "tqdm>=4.65.0",
+    "watchdog>=3.0.0",
+]
+
+[project.optional-dependencies]
+gui = ["PyQt6>=6.6", "PyQt6-Qt6>=6.6"]
+plots = [
+    "matplotlib>=3.7.0",
+    "plotly>=5.14.0",
+    "kaleido>=0.2.1",
+    "PyComplexHeatmap>=1.7",
+    "seaborn>=0.13",
+    "pysam>=0.22",
+]
+excel = ["openpyxl>=3.1.0"]
+dev = ["pytest>=7.0", "pytest-cov>=4.0"]
+all = ["emtrace[gui,plots,excel,dev]"]
+
+[project.scripts]
+emtrace = "emtrace.__main__:cli"
+
+[project.urls]
+Homepage = "https://github.com/weinstein-bioinfo/EMtrace"
+Issues = "https://github.com/weinstein-bioinfo/EMtrace/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

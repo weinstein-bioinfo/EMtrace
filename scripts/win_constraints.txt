@@ -1,0 +1,8 @@
+# Windows build constraints for EMtrace.
+#
+# pysam ships no Windows wheels and cannot build under MSVC (it wraps
+# htslib, which is POSIX-only). It is imported lazily by the coverage
+# plot in steps/plots.py, which already degrades gracefully, so the
+# Windows bundle simply omits it.
+#
+# Add version pins here when a dependency breaks on Windows only.

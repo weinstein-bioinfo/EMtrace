@@ -1,0 +1,699 @@
+"""Batch processor for real-time Nanopore analysis.
+
+Processes incoming FASTQ files through the pipeline in batches:
+  1. Preprocess (chopper/porechop)
+  2. Host filter
+  3. Annotate (rounds 1 & 2)
+  4. EM abundance (warm-start from previous F(t) estimates)
+  5. Report (optional, on demand or periodic)
+
+Thread-safe: accumulates annotation tables across batches and
+updates EM abundance estimates incrementally.
+
+Option B strategy (from ROADMAP):
+  Warm-start EM from previous F(t) estimates rather than
+  re-running from scratch each time.
+"""
+
+from __future__ import annotations
+
+import logging
+import shutil
+import threading
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import (Callable, Dict, List, Optional, Sequence)
+
+import pandas as pd
+
+from emtrace.analysis.em import EMResult, em_loop, log_hit_structure
+from emtrace.core.config import EMtraceConfig
+from emtrace.core.pipeline import Pipeline
+from emtrace.core.pipelinejob import PipelineJob
+from emtrace.models.annotation import (read_annotation_tsv, write_annotation_tsv)
+from emtrace.steps import StepName
+from emtrace.steps.report import ReportStep
+from emtrace.utils.paths import ensure_dir
+
+logger = logging.getLogger("emtrace.realtime.processor")
+
+
+# ------------------------------------------------------------------
+# Accumulated state
+# ------------------------------------------------------------------
+
+@dataclass
+class RealtimeState:
+    """Thread-safe accumulated state across batches."""
+
+    # Annotation table (all batches merged)
+    annotations: pd.DataFrame = field( default_factory=lambda: pd.DataFrame() )
+    # Current EM abundance estimates F(t)
+    F: Dict[str, float] = field(default_factory=dict)
+    # Latest EM result
+    em_result: Optional[EMResult] = None
+    # Batch counter
+    batch_count: int = 0
+    # Total reads processed
+    total_reads: int = 0
+    # Total files processed
+    total_files: int = 0
+    # Lock for thread-safe updates
+    _lock: threading.Lock = field( default_factory=threading.Lock )
+
+    def update(
+        self,
+        new_annot: pd.DataFrame,
+        em_result: Optional[EMResult],
+        n_reads: int,
+        n_files: int,
+    ) -> None:
+        """Merge new annotations and EM result."""
+        with self._lock:
+            self.batch_count += 1
+            self.total_reads += n_reads
+            self.total_files += n_files
+
+            if not new_annot.empty:
+                if self.annotations.empty:
+                    self.annotations = new_annot.copy()
+                else:
+                    self.annotations = pd.concat(
+                        [self.annotations, new_annot], ignore_index=True)
+
+            if em_result is not None:
+                self.em_result = em_result
+                self.F = dict(em_result.F)
+
+    def get_snapshot(self) -> dict:
+        """Return a summary dict (thread-safe)."""
+        with self._lock:
+            top_taxa = sorted( self.F.items(), key=lambda x: x[1], reverse=True)[:20]
+            return {
+                "batch_count": self.batch_count,
+                "total_reads": self.total_reads,
+                "total_files": self.total_files,
+                "n_annotations": len(self.annotations),
+                "n_taxa": len(self.F),
+                "log_L": (self.em_result.log_L if self.em_result else None),
+                "top_taxa": top_taxa,
+            }
+
+
+# ------------------------------------------------------------------
+# Callbacks
+# ------------------------------------------------------------------
+
+# Type alias for callbacks
+BatchCallback = Callable[ [int, RealtimeState], None]
+
+# ------------------------------------------------------------------
+# Batch processor
+# ------------------------------------------------------------------
+
+class BatchProcessor:
+    """Process FASTQ batches through the pipeline.
+
+    Accumulates annotations across batches and runs warm-start
+    EM after each batch.
+
+    Parameters
+    ----------
+    config : EMtraceConfig
+        Pipeline configuration.
+    output_dir : Path
+        Root output directory for real-time results.
+    job_name : str
+        PipelineJob name / label.
+    ann1 : str
+        Annotation database string for round 1.
+    ann2 : str
+        Annotation database string for round 2.
+    anns : str
+        Named annotation strategy.
+    hostgen : str
+        Host genome key(s).
+    batch_size : int
+        Number of files per batch.
+    on_batch_complete : callback, optional
+        Called after each batch with (batch_num, state).
+    run_report : bool
+        Run report step after each batch.
+    """
+
+    def __init__(
+        self,
+        config: EMtraceConfig,
+        output_dir: Path,
+        job_name: str = "realtime",
+        *,
+        ann1: str = "",
+        ann2: str = "",
+        anns: str = "",
+        hostgen: str = "",
+        batch_size: int = 1,
+        on_batch_complete: Optional[BatchCallback] = None,
+        run_report: bool = False,
+    ) -> None:
+        self.config = config
+        self.output_dir = Path(output_dir)
+        self.job_name = job_name
+        self.ann1 = ann1
+        self.ann2 = ann2
+        self.anns = anns
+        self.hostgen = hostgen
+        self.batch_size = batch_size
+        self.on_batch_complete = on_batch_complete
+        self.run_report = run_report
+        self.state = RealtimeState()
+        self.pipeline = Pipeline(config)
+
+        # Accumulated annotation table path
+        self._accum_annot_path = self.output_dir / "realtime_annot.tsv"
+
+        # EM output path
+        self._em_prob_path = self.output_dir / "results" / "EM.taxid_prob.tsv"
+        # Hit-structure warning is logged once per run, not once per batch.
+        self._warned_hit_structure = False
+
+        # Directories
+        ensure_dir(self.output_dir)
+        ensure_dir(self.output_dir / "batches")
+        ensure_dir(self.output_dir / "results")
+
+    # ----------------------------------------------------------
+    # Public API
+    # ----------------------------------------------------------
+    def process_files( self, fastq_files: Sequence[Path]) -> RealtimeState:
+        """Process one or more FASTQ files as a batch.
+
+        Steps executed per batch:
+          1. Concatenate input files
+          2. Preprocess
+          3. Host filter (if configured)
+          4. Annotate
+          5. Merge annotations with accumulated table
+          6. Warm-start EM on full accumulated annotations
+          7. Write updated outputs
+          8. Report (if enabled)
+
+        Returns the updated state.
+        """
+        batch_num = self.state.batch_count + 1
+        batch_dir = self.output_dir / "batches" / f"batch_{batch_num:04d}"
+        ensure_dir(batch_dir)
+
+        logger.info("=== BATCH %d: %d file(s) ===", batch_num, len(fastq_files))
+
+        # --- Concatenate input files ---
+        batch_fq = batch_dir / "batch_input.fq.gz"
+        self._concat_fastq(fastq_files, batch_fq)
+
+        # --- Build per-batch PipelineJob ---
+        job = self._make_batch_job( batch_fq, batch_dir, batch_num )
+
+        # --- Run pre + flt + ann steps ---
+        steps = self._batch_steps()
+        try:
+            self.pipeline.run(job, steps)
+        except Exception as exc:
+            logger.error( "Batch %d pipeline failed: %s", batch_num, exc )
+            return self.state
+
+        # --- Count reads processed ---
+        n_reads = self._count_reads(batch_fq)
+
+        # --- Merge batch annotations ---
+        batch_annot = self._read_batch_annotations(job)
+
+        # --- EM with warm-start ---
+        em_result = self._run_em(batch_annot)
+
+        # --- Update state ---
+        self.state.update( batch_annot, em_result, n_reads, len(fastq_files))
+
+        # --- Write accumulated outputs ---
+        self._write_outputs()
+
+        # --- Report (optional) ---
+        if self.run_report:
+            self._run_report_step(job)
+
+        # --- Callback ---
+        if self.on_batch_complete:
+            try:
+                self.on_batch_complete( batch_num, self.state)
+            except Exception as exc:
+                logger.warning( "Batch callback error: %s", exc )
+
+        logger.info(
+            "Batch %d done: %d reads, %d total, %d taxa, logL=%.2f",
+            batch_num,
+            n_reads,
+            self.state.total_reads,
+            len(self.state.F),
+            (em_result.log_L if em_result else 0.0),
+        )
+
+        return self.state
+
+    def process_single(self, fastq: Path) -> RealtimeState:
+        """Process a single FASTQ file."""
+        return self.process_files([fastq])
+
+    def generate_final_report(self) -> None:
+        """Generate a final report from accumulated data."""
+        if self.state.annotations.empty:
+            logger.warning( "No annotations — skipping final report" )
+            return
+
+        sample = self._make_report_job()
+        # Stats are produced inside the report step (StepName.STA no longer exists).
+        report_steps = [StepName.REP]
+        available = [ s for s in report_steps if s in self.pipeline._steps ]
+        if available:
+            self.pipeline.run(sample, available)
+            logger.info("Final report generated")
+
+    # ----------------------------------------------------------
+    # Internal: PipelineJob construction
+    # ----------------------------------------------------------
+
+    def _make_batch_job(self, batch_fq: Path, batch_dir: Path, batch_num: int
+                        ) -> PipelineJob:
+        """Build a PipelineJob for one batch."""
+        job: PipelineJob = PipelineJob(
+            name=f"{self.job_name}_b{batch_num:04d}",
+            input_reads=batch_fq,
+            output_dir=batch_dir,
+            results_dir="results",
+            num_threads=self.config.runtime.num_threads,
+        )
+        job.init_dirs()
+        self.pipeline.setup_job(
+            job,
+            ann1=self.ann1,
+            ann2=self.ann2,
+            anns=self.anns,
+        )
+        return job
+
+    def _make_report_job(self) -> PipelineJob:
+        """Build a PipelineJob pointing to accumulated data."""
+        job = PipelineJob(
+            name=self.job_name,
+            output_dir=self.output_dir,
+            results_dir="results",
+            num_threads=self.config.runtime.num_threads,
+        )
+        job.init_dirs()
+
+        # Write accumulated annotation for report step
+        annot_path = self.output_dir / "annot1.tsv"
+        if not self.state.annotations.empty:
+            write_annotation_tsv(
+                self.state.annotations, annot_path,
+            )
+            job.set_file("annot1", annot_path)
+
+        # Write EM probs for report step
+        if self.state.F:
+            em_path = (
+                self.output_dir / "results"
+                / "EM.taxid_prob.tsv"
+            )
+            self._write_em_tsv(self.state.F, em_path, self._em_n_queries())
+            job.set_file("em_taxid_prob", em_path)
+
+        return job
+
+    # ----------------------------------------------------------
+    # Internal: pipeline steps
+    # ----------------------------------------------------------
+
+    def _batch_steps(self) -> List[StepName]:
+        """Steps to run per batch."""
+        steps = [StepName.PORE, StepName.CHOP, StepName.ANN]
+        # Insert host filtering if configured
+        if self.hostgen and self.hostgen != "0":
+            steps.insert(2, StepName.FLT)
+        return steps
+
+    def _run_report_step(self, sample: PipelineJob) -> None:
+        """Run report step using accumulated data."""
+        try:
+            report_sample = self._make_report_job()
+            if StepName.REP in self.pipeline._steps:
+                self.pipeline._steps[StepName.REP].execute(
+                    report_sample,
+                )
+        except Exception as exc:
+            logger.warning(
+                "Report step failed: %s", exc,
+            )
+
+    # ----------------------------------------------------------
+    # Internal: annotation merging
+    # ----------------------------------------------------------
+    def _read_batch_annotations( self, sample: PipelineJob ) -> pd.DataFrame:
+        """Read annotation tables from a batch sample."""
+        frames = []
+        for key in ("annot2", "annot1"):
+            p = sample.get_file(key)
+            if p and p.exists():
+                try:
+                    df = read_annotation_tsv(p)
+                    if not df.empty:
+                        frames.append(df)
+                except Exception:
+                    pass
+                break  # prefer annot2, fallback annot1
+
+        if not frames:
+            # Try disk paths
+            for name in ("annot2.tsv", "annot1.tsv"):
+                p = sample.output_dir / name
+                if p.exists():
+                    try:
+                        df = read_annotation_tsv(p)
+                        if not df.empty:
+                            frames.append(df)
+                    except Exception:
+                        pass
+                    break
+
+        if frames:
+            return pd.concat(frames, ignore_index=True)
+        return pd.DataFrame()
+
+    # ----------------------------------------------------------
+    # Internal: EM with warm-start
+    # ----------------------------------------------------------
+    def _run_em( self, new_annot: pd.DataFrame ) -> Optional[EMResult]:
+        """Run EM on accumulated annotations with warm-start.
+
+        Uses the full accumulated annotation table (not just
+        the new batch) and warm-starts from previous F(t).
+        """
+        # Merge new with accumulated
+        with self.state._lock:
+            if not self.state.annotations.empty:
+                full_annot = pd.concat(
+                    [self.state.annotations, new_annot],
+                    ignore_index=True,
+                )
+            else:
+                full_annot = new_annot
+
+        if full_annot.empty:
+            return None
+
+        # Check required columns
+        required = {"qseqid", "staxid", "bitscore"}
+        if not required.issubset(full_annot.columns):
+            logger.warning("Annotation missing columns for EM: %s",
+                           required - set(full_annot.columns))
+            return None
+
+        # EM parameters from config
+        em_cfg = self.config.em
+        F_init = self.state.F or None
+
+        try:
+            result = em_loop(
+                full_annot,
+                temp=em_cfg.temp,
+                max_iter=em_cfg.max_iter,
+                log_L_threshold=em_cfg.log_L_threshold,
+                exclude_no_species=(
+                    em_cfg.exclude_no_species
+                ),
+                F_init=F_init,
+            )
+            if not self._warned_hit_structure:
+                self._warned_hit_structure = log_hit_structure(
+                    result, logger, self.config.annotation.filter_tophits,
+                )
+            return result
+        except Exception as exc:
+            logger.error("EM failed: %s", exc)
+            return None
+
+    # ----------------------------------------------------------
+    # Internal: I/O helpers
+    # ----------------------------------------------------------
+
+    @staticmethod
+    def _concat_fastq(
+        files: Sequence[Path],
+        output: Path,
+    ) -> None:
+        """Concatenate FASTQ files (gz-aware)."""
+        import gzip
+
+        output.parent.mkdir(parents=True, exist_ok=True)
+
+        with gzip.open(output, "wb") as out_fh:
+            for fq in files:
+                opener = (
+                    gzip.open if fq.name.endswith(".gz")
+                    else open
+                )
+                with opener(fq, "rb") as in_fh:
+                    shutil.copyfileobj(in_fh, out_fh)
+
+    @staticmethod
+    def _count_reads(fastq_path: Path) -> int:
+        """Count reads in a FASTQ file (4 lines each)."""
+        import gzip
+
+        count = 0
+        opener = (
+            gzip.open if fastq_path.name.endswith(".gz")
+            else open
+        )
+        try:
+            with opener(fastq_path, "rt") as fh:
+                for _ in fh:
+                    count += 1
+        except Exception:
+            return 0
+        return count // 4
+
+    def _em_n_queries(self) -> int:
+        """Reads in the latest EM input (0 if EM has not run)."""
+        result = self.state.em_result
+        return result.n_queries if result is not None else 0
+
+    @staticmethod
+    def _write_em_tsv(
+        F: Dict[str, float], path: Path, n_queries: int = 0,
+    ) -> None:
+        """Write taxid, prob, readn_em TSV (readn_em "NA" if reads unknown)."""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        sorted_taxa = sorted(
+            F.items(),
+            key=lambda x: x[1],
+            reverse=True,
+        )
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write("taxid\tprob\treadn_em\n")
+            for taxid, prob in sorted_taxa:
+                readn_em = prob * n_queries if n_queries > 0 else "NA"
+                fh.write(f"{taxid}\t{prob}\t{readn_em}\n")
+
+    def _write_outputs(self) -> None:
+        """Write accumulated annotations and EM probs."""
+        with self.state._lock:
+            if not self.state.annotations.empty:
+                write_annotation_tsv(
+                    self.state.annotations,
+                    self._accum_annot_path,
+                )
+            if self.state.F:
+                self._write_em_tsv(
+                    self.state.F, self._em_prob_path, self._em_n_queries(),
+                )
+        if self.config.output.realtime_abund_table:
+            self._write_abundance_tsv()
+
+    def _write_abundance_tsv(self) -> None:
+        """Build and write abund_table.tsv from accumulated annotations + EM probs.
+
+        Reuses ReportStep._build_abundance_table() to stay in sync with the
+        batch pipeline. Skips gracefully if state is empty or build fails.
+        """
+        with self.state._lock:
+            annot = self.state.annotations.copy()
+            has_f = bool(self.state.F)
+        if annot.empty or not has_f:
+            return
+
+        from emtrace.models.abundance import write_abundance_tsv
+
+        report_step: ReportStep = ReportStep(config=self.config)
+        try:
+            abund_df = report_step._build_abundance_table(  # pyright: ignore [reportAttributeAccessIssue]
+                annot=annot,
+                min_qcov=0,
+                min_bits=0,
+                em_prob_path=self._em_prob_path,
+            )
+        except Exception as exc:
+            logger.warning("Could not build abundance table: %s", exc)
+            return
+
+        if abund_df.empty:
+            return
+
+        # Link taxonomy lineage (NCBI or SILVA).
+        #
+        # The taxonomy follows the annotation database (the 'db' column),
+        # exactly as ReportStep does: SILVA accessions only resolve in SILVA
+        # taxonomy, everything else in NCBI taxonomy.
+        try:
+            from emtrace.analysis.taxonomy_utils import is_silva_annotation
+            from emtrace.core.config import TaxonomyType
+
+            tax_type = (
+                TaxonomyType.SILVA if is_silva_annotation(annot, self.config)
+                else TaxonomyType.NCBI
+            )
+            tax_cfg = self.config.taxonomy.source(tax_type)
+            tax_db = Path(tax_cfg.db)
+
+            if tax_type == TaxonomyType.SILVA:
+                report_step._link_silva_lineage_abund(abund_df, tax_cfg) # pyright: ignore [reportAttributeAccessIssue]
+            else:
+                report_step._link_ncbi_lineage_abund(abund_df, tax_db) # pyright: ignore [reportAttributeAccessIssue]
+                from emtrace.analysis.taxonomy_utils import add_division_field
+                add_division_field(abund_df, tax_db, taxid_col="taxid")
+        except Exception as exc:
+            logger.warning("Taxonomy linkage skipped: %s", exc)
+
+        # Same opt-in filter the batch report step applies, so `watch`
+        # output matches `run` output.
+        if getattr(self.config.report, "exclude_no_species", False):
+            from emtrace.analysis.taxonomy_utils import filter_no_species
+            abund_df = filter_no_species(abund_df, context="realtime abund_table")
+
+        # Same cumulative-share tail trim `run` applies (report.tail), so the
+        # live table means the same thing as the batch one. ReportStep owns
+        # the rule, including its refusal to trim without a `division` column
+        # -- which is likelier here, since taxonomy linkage above is
+        # best-effort and may have been skipped.
+        abund_df = report_step._apply_tail_trim(abund_df, self.config.report)  # pyright: ignore [reportAttributeAccessIssue]
+
+        abund_path = self.output_dir / "results" / "abund_table.tsv"
+        write_abundance_tsv(abund_df, abund_path)
+        logger.info("Abundance table -> %s (%d taxa)", abund_path, len(abund_df))
+
+
+# ------------------------------------------------------------------
+# Convenience: run watcher + processor together
+# ------------------------------------------------------------------
+
+def run_realtime(
+    watch_dir: str | Path,
+    output_dir: str | Path,
+    config: EMtraceConfig,
+    job_name: str = "realtime",
+    *,
+    ann1: str = "",
+    ann2: str = "",
+    anns: str = "",
+    hostgen: str = "",
+    batch_size: int = 1,
+    debounce: float = 2.0,
+    scan_existing: bool = False,
+    on_batch_complete: Optional[BatchCallback] = None,
+    stop_event: Optional[threading.Event] = None,
+    run_report: bool = False,
+) -> RealtimeState:
+    """Run the full real-time pipeline: watch + process.
+
+    Blocks until *stop_event* is set (e.g. via Ctrl+C handler).
+
+    Parameters
+    ----------
+    watch_dir : Path
+        Directory to monitor for FASTQ files.
+    output_dir : Path
+        Root output directory.
+    config : EMtraceConfig
+        Pipeline configuration.
+    job_name : str
+        PipelineJob label.
+    ann1, ann2, anns, hostgen
+        Pipeline configuration (same as CLI options).
+    batch_size : int
+        Files per batch (1 = process each file immediately).
+    debounce : float
+        Seconds to wait after file stops changing.
+    scan_existing : bool
+        Process FASTQ files already in the directory.
+    on_batch_complete : callback
+        Called after each batch.
+    stop_event : threading.Event
+        Set this to stop the loop.
+    run_report : bool
+        Run report step after each batch.
+
+    Returns
+    -------
+    RealtimeState
+        Final accumulated state.
+    """
+    from emtrace.realtime.watcher import FastqWatcher
+
+    if stop_event is None:
+        stop_event = threading.Event()
+
+    watcher = FastqWatcher(
+        watch_dir,
+        debounce_seconds=debounce,
+        scan_existing=scan_existing,
+    )
+
+    processor = BatchProcessor(
+        config=config,
+        output_dir=Path(output_dir),
+        job_name=job_name,
+        ann1=ann1,
+        ann2=ann2,
+        anns=anns,
+        hostgen=hostgen,
+        batch_size=batch_size,
+        on_batch_complete=on_batch_complete,
+        run_report=run_report,
+    )
+
+    watcher.start()
+    batch_buffer: List[Path] = []
+
+    try:
+        while not stop_event.is_set():
+            path = watcher.get(timeout=1.0)
+            if path is None:
+                continue
+
+            batch_buffer.append(path)
+
+            if len(batch_buffer) >= batch_size:
+                processor.process_files(batch_buffer)
+                batch_buffer.clear()
+    except KeyboardInterrupt:
+        logger.info("Interrupted — shutting down")
+    finally:
+        # Process remaining files
+        if batch_buffer:
+            logger.info(  "Processing %d remaining files", len(batch_buffer) )
+            processor.process_files(batch_buffer)
+            batch_buffer.clear()
+
+        # Generate final report
+        processor.generate_final_report()
+
+        watcher.stop()
+
+    return processor.state

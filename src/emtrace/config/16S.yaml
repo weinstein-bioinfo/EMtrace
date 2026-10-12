@@ -1,0 +1,36 @@
+# 16S rRNA amplicon profiling profile.
+#
+#   emtrace run --profile 16S ...
+#   emtrace watch --profile 16S ...
+#
+# Overlaid on default.yaml (EMtraceConfig.from_profile): only the keys that
+# differ are listed, so databases, taxonomy and host filtering are inherited.
+# Mappings merge key by key; scalars and lists replace wholesale.
+#
+# The settings below are the best NCBI-taxonomy cell of the 16S benchmark --
+# de-duplicated rrnDB, 25 secondary alignments, all hits kept for the EM, EM
+# temperature 10 -- see the EMtrace manuscript (16S benchmark).
+
+report:
+  # ON here. Full-length 16S against a 16S database produces a long tail of
+  # single-read neighbours: on the ZymoBIOMICS mock this trim is the whole
+  # difference between species precision 0.40 and 1.00, at every batch of the
+  # run, without moving L1 (EMtrace manuscript, 16S benchmark).
+  tail: 0.01
+  # A 16S run has no viral expectation, so there is nothing to protect and
+  # exempting a division would only leave noise behind.
+  tail_viruses: true
+
+annotation:
+  anns: 16S.rrnDB.dedup
+  minimap:
+    max_target_seqs: 25             # -N 25: more sub-best hits for the EM to weigh
+
+em:
+  temp: 10.0                        # softer score -> probability conversion
+
+preprocess:
+  chopper:
+    quality: 10
+    minlength: 1200                 # full-length 16S is ~1.5 kb; cut the fragments
+    maxlength: 1800
