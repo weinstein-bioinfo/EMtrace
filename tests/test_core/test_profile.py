@@ -62,7 +62,7 @@ def default():
 
 def test_16S_profile_turns_the_tail_trim_on(s16, default):
     assert s16.report.tail == 0.01
-    assert s16.report.tail_viruses is True
+    assert s16.report.tail_viruses is False
     assert default.report.tail == 0.0          # and the defaults stay off
 
 
@@ -73,6 +73,10 @@ def test_16S_profile_sets_the_benchmarked_cell(s16):
     assert (s16.preprocess.chopper.quality,
             s16.preprocess.chopper.minlength,
             s16.preprocess.chopper.maxlength) == (10, 1200, 1800)
+    assert (s16.annotation.minimap.s, s16.annotation.minimap.m) == (200, 80)
+    assert s16.preprocess.porechop_abi.no_split is False
+    assert s16.preprocess.porechop_abi.min_split_read_size == 200
+    assert s16.preprocess.bgfilter.bgfilter == "0"      # no host filtering
 
 
 def test_16S_strategy_resolves_against_the_shipped_databases(s16):
@@ -88,7 +92,7 @@ def test_profile_inherits_everything_it_does_not_name(s16, default):
     assert s16.report.min_qcov == default.report.min_qcov
     assert s16.report.sort_reads == default.report.sort_reads
     assert s16.taxonomy.NCBI.db == default.taxonomy.NCBI.db
-    assert s16.preprocess.bgfilter.bgfilter == default.preprocess.bgfilter.bgfilter
+    assert s16.preprocess.bgfilter.aligner == default.preprocess.bgfilter.aligner
 
 
 def test_profile_merge_is_onto_default_yaml_not_model_defaults(s16):
