@@ -49,7 +49,7 @@ A typical analysis proceeds through the following stages:
    databases using *Minimap2* and *DIAMOND*, in up to two
    chained rounds.
 4. **Abundance estimation** — an expectation–maximization (EM) algorithm resolves
-   multi-mapping reads into per-taxon p-values.
+   multi-mapping reads into per-taxon abundance probabilities.
 5. **Reference-based assembly** *(optional)* — consensus reconstruction against
    user-supplied references, or references selected automatically from the
    reads' hits (`--ref_auto`).
@@ -322,6 +322,18 @@ job. Every parameter has a sensible default; the groups below describe those
 most often adjusted. The complete set is documented in the bundled
 `default.yaml`.
 
+**Profile.** The *Profile* drop-down at the top of the panel selects a set of
+defaults: *default (virome)* for viral metagenomics, or *16S* for full-length
+16S rRNA amplicons (the benchmarked 16S settings: `16S.rrnDB.dedup`, no host
+filtering, 1,200–1,800 bp reads, 1 % tail trim). It is the GUI equivalent of
+the CLI's `--profile`. Switching changes only the settings the profile defines
+and keeps all others; picking a `16S.*` annotation preset switches to *16S*,
+any other preset back to *default*. The profile is saved in `config.yaml`
+(`profile:`) and recorded in each job's `job.yaml`. When profile settings
+have been changed by hand, a *modified* note appears next to the drop-down;
+hover over it to see which settings differ from the profile. The run log lists
+the same differences.
+
 **Runtime** — the number of threads and the run *Mode*. In *online* mode the
 pipeline may fall back to NCBI Entrez to fetch a reference that is not present in
 the local database (a valid contact e-mail is required); in *offline* mode it
@@ -391,7 +403,8 @@ are supplied as FASTA paths (`refseqs`) or NCBI accessions (`refaccs`, fetched
 through Entrez in online mode), or selected automatically (`ref_auto`, below).
 Reads are mapped with *Minimap2*; a consensus is then called
 and positions below the minimum read depth (`min_coverage`, default 10) are masked
-as `N`.
+as `N`. In the GUI, automatic selection is the *Auto-select references* checkbox;
+a reference FASTA file or accessions, when given, always take precedence.
 
 **Automatic reference selection** (`assembly.ref_auto`, `--ref_auto`) applies
 when neither `refseqs` nor `refaccs` is set. It uses two sources of hits:
@@ -428,6 +441,17 @@ strictly exceeding `min_af` (default 0.5 — the dominant allele) is written int
 it. Both tiers additionally require `min_ac` supporting reads (default 5), and
 `report_min_af` must not exceed `min_af`. An optional `vcf_flt` expression is
 ANDed into both filters for advanced use; it is empty by default.
+
+**Medaka polishing** (`assembly.medaka`, Nanopore single-end reads only) refines
+the consensus with *Medaka* after variant calling. It is on by default
+(`enabled`, CLI `--medaka` / `--no-medaka`) and is skipped with a warning if
+Medaka is not installed. The model is read from the read headers (`model:
+auto`, CLI `--medaka_model`); `fallback_model` is used when the headers carry
+none (empty = Medaka's default). `path` points to the Medaka executable or its
+`bin/` directory when Medaka lives in its own environment (empty = on `PATH`),
+`batch_size` sets the inference batch size (lower it if GPU memory runs out),
+and `cpu` forces inference on the CPU. In the GUI these settings are under
+*Assembly › Medaka polishing (ONT)*.
 
 **EM abundance.** Many reads align ambiguously to several taxa. An
 expectation–maximization algorithm iteratively redistributes them to estimate
@@ -692,8 +716,10 @@ are:
 | `--anns` | Named annotation strategy (overrides `--ann1`/`--ann2`). |
 | `--refaccs` / `--refseqs` | References for reference-based assembly. |
 | `--ref_auto` | Select assembly references automatically (see *Assembly*). |
+| `--medaka` / `--no-medaka` | Polish the consensus with *Medaka* (on by default); `--medaka_model` sets the model (`auto` = from the read headers). |
 | `-t, --numth` | Number of threads. |
-| `--config` | Configuration YAML (defaults to the bundled configuration). |
+| `--config` | Configuration YAML; replaces the bundled defaults. |
+| `--profile` | Settings profile: `default` (alias `virome`) or `16S`, overlaid on the bundled defaults (see *Configuring settings*). Cannot be combined with `--config`. |
 | `-v` | Increase verbosity (`-v` info, `-vv` debug). |
 
 <br>
@@ -772,6 +798,26 @@ emtrace watch \
   --report \
   -v
 ```
+
+Settings come from `--config` or `--profile` (e.g. `--profile 16S` for 16S
+amplicons), as for `emtrace run`. After each batch the console prints the top
+taxa with their names.
+
+Files may be written, copied, or moved/renamed into the watched directory
+(e.g. a Finder drag, `mv`, or `rsync`, which writes a temporary file and
+renames it). A file counts once it has stopped growing for `--debounce`
+seconds. The directory is also rescanned every 30 s, which catches files whose
+change notifications were missed (e.g. on network drives). A file that was
+already processed is not processed again after a rename. FASTQ files already in
+the directory when monitoring starts are ignored unless `--scan-existing` is
+given.
+
+**In the GUI**, the **Realtime** tab runs the same monitor with the settings of
+the job that is open. Set the *Watch directory* and *Output directory*, the
+*Batch size* (files per batch) and *Debounce* (seconds), then click
+**▶ Start Watching**; **■ Stop** ends monitoring and writes the final report.
+The tab shows the current batch, total reads, files and taxa detected, and a
+*Top taxa* list by EM abundance, with species names (hover for the taxid).
 
 ---
 
