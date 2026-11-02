@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "emtrace"
-version = "1.0.0"
+version = "1.0.1"
 description = "Offline, real-time nanopore metagenomics: read classification, EM abundance estimation and reference-based consensus assembly"
 readme = "README.md"
 license = "GPL-3.0-or-later"
@@ -48,6 +48,10 @@ Issues = "https://github.com/weinstein-bioinfo/EMtrace/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# Non-Python files the package reads at run time (defaults, profiles, GUI icons).
+[tool.setuptools.package-data]
+emtrace = ["config/*.yaml", "gui/resources/icons/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

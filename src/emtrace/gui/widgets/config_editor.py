@@ -8,7 +8,7 @@ Sections exposed:
   - Preprocessing    — Chopper + Porechop_ABI (basic + Advanced sub-section)
   - Background Filtering   — host genome checkboxes + alignment thresholds
   - Annotation       — strategy selector, ann1/ann2, tool settings
-  - Assembly         — aligner, coverage/variant thresholds
+  - Assembly         — minimap2 mapping, coverage/variant thresholds
   - EM Abundance     — EM parameters
   - Reporting        — thresholds, Excel export, read sorting
   - Output           — pack / FASTA / realtime table flags
@@ -27,7 +27,7 @@ import pandas as pd
 from pydantic import BaseModel
 from emtrace.analysis.taxonomy_utils import is_silva_annotation
 from pydantic.fields import FieldInfo
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -52,7 +52,6 @@ from PyQt6.QtWidgets import (
 from emtrace.core.config import (
     AnnotationConfig,
     AssemblyConfig,
-    BgFilterBwaMemConfig,
     BgFilterConfig,
     AssemblyMinimapConfig,
     BgFilterMinimapConfig,
@@ -91,7 +90,6 @@ _DIAMOND_MODES = [
     "ultra-sensitive", "very-sensitive", "more-sensitive",
     "sensitive", "mid-sensitive", "fast",
 ]
-_ASSEMBLY_ALIGNERS = ["bwa", "minimap2"]
 _ORFIPY_STRANDS = ["b", "f", "r"]
 _TOPTAXRANK_OPTIONS = ["auto", "division", "domain", "kingdom", "order", "family"]
 
@@ -168,9 +166,6 @@ _FIELD_LABELS: Dict[str, str] = {
     "bgfilter.minimap.m":              "Chaining score threshold (-m)",
     "bgfilter.minimap.s":              "DP alignment score threshold (-s, requires -c)",
     "bgfilter.minimap.save_mmi_index": "Save/reuse minimap2 index (.mmi)",
-    "bgfilter.bwa_mem.T":              "Alignment score threshold (-T)",
-    "bgfilter.bwa_mem.min_score":      "Min alignment score (post-filter)",
-    "bgfilter.bwa_mem.min_mapq":       "Min MAPQ (post-filter)",
     "annotation.ann1":           "Round 1 databases (CSV of keys)",
     "annotation.ann2":           "Round 2 databases (CSV of keys)",
     "blastn.bitscore":           "Min bitscore",
@@ -207,9 +202,6 @@ _FIELD_LABELS: Dict[str, str] = {
     "assembly.minimap.s":              "DP alignment score threshold (-s, requires -c, 0 = default)",
     "assembly.minimap.k":              "k-mer size (-k, 0 = default 15)",
     "assembly.minimap.w":              "Minimizer window (-w, 0 = default 10)",
-    "assembly.bwa_mem.T":              "Alignment score threshold (-T)",
-    "assembly.bwa_mem.min_score":      "Min alignment score (post-filter)",
-    "assembly.bwa_mem.min_mapq":       "Min MAPQ (post-filter)",
     "em.temp":                   "Temperature",
     "em.max_iter":               "Max iterations",
     "em.log_L_threshold":        "Log-likelihood threshold",
@@ -740,7 +732,14 @@ class _AnnotationStrategyBar(QWidget):
     * Any manual change to Round-1 or Round-2 resets the preset to "(custom)".
     * Presets that reference uninstalled databases are shown greyed and
       non-selectable.
+
+    Signals
+    -------
+    preset_selected
+        The preset name chosen in the drop-down (``None`` for "(custom)").
     """
+
+    preset_selected = pyqtSignal(object)  # Optional[str]
 
     def __init__(
         self,
@@ -837,6 +836,7 @@ class _AnnotationStrategyBar(QWidget):
         if self._blocking:
             return
         name = self._strategy_combo.currentData()
+        self.preset_selected.emit(name)
         if name is None:
             return  # (custom) — leave pickers as-is
 
@@ -884,10 +884,14 @@ class ConfigEditorWidget(QScrollArea):
     Signals
     -------
     config_changed
-        Emitted with the new :class:`EMtraceConfig` after Apply is clicked.
+        Emitted with the new :class:`EMtraceConfig` after Apply is clicked,
+        and after a switch of analysis mode.
+    status_message
+        A one-line message for the main window's status bar.
     """
 
     config_changed = pyqtSignal(object)  # EMtraceConfig
+    status_message = pyqtSignal(str)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -897,10 +901,10 @@ class ConfigEditorWidget(QScrollArea):
         self._field_widgets: Dict[str, QWidget] = {}
         self._host_picker: Optional[_HostGenomePicker] = None        # legacy ref kept for compat
         self._host_picker_mm2: Optional[_HostGenomePicker] = None  # minimap2 host picker
-        self._host_picker_bwa: Optional[_HostGenomePicker] = None  # bwa host picker
         self._strategy_bar: Optional[_AnnotationStrategyBar] = None
         self._annot_dir: Optional[Path] = None
         self._viral_hits_combo: Optional[_ViralHitsCombo] = None
+        self._mode_combo: Optional[QComboBox] = None
 
         # Outer container
         self._container = QWidget()
@@ -927,6 +931,9 @@ class ConfigEditorWidget(QScrollArea):
         self._clear()
 
         ann = config.annotation
+
+        # --- Analysis mode: virome / 16S ---
+        self._vbox.addWidget(self._build_mode_row(config))
 
         # --- Section: Runtime ---
         self._vbox.addWidget(self._build_section("runtime", "Runtime", config.runtime))
@@ -1019,6 +1026,67 @@ class ConfigEditorWidget(QScrollArea):
             combo.blockSignals(False)
 
     # ==================================================================
+    # Analysis mode (virome / 16S)
+    # ==================================================================
+
+    def _build_mode_row(self, config: EMtraceConfig) -> QWidget:
+        """Mode selector at the top of the form: virome or 16S settings."""
+        row = QWidget()
+        form = QFormLayout(row)
+        form.setContentsMargins(0, 0, 0, 6)
+        self._mode_combo = QComboBox()
+        for label, mode in _MODE_LABELS.items():
+            self._mode_combo.addItem(label, mode)
+        self._mode_combo.setToolTip(
+            "Virome: default settings for viral metagenomics.\n"
+            "16S rRNA: the benchmarked 16S profile (full-length amplicons;\n"
+            "-N 25, EM temperature 10, no host filter, 1200-1800 bp reads,\n"
+            "1 % tail trim). Switching changes only these settings."
+        )
+        self._mode_combo.setCurrentIndex(self._mode_combo.findData(config.mode))
+        self._mode_combo.currentIndexChanged.connect(self._on_mode_selected)
+        form.addRow("Analysis mode:", self._mode_combo)
+        return row
+
+    def _on_mode_selected(self, _index: int) -> None:
+        mode = self._mode_combo.currentData()
+        # Deferred: the switch rebuilds the form, including this combo.
+        QTimer.singleShot(0, lambda: self._switch_mode(mode, "mode switch"))
+
+    def _on_preset_selected(self, name: Optional[str]) -> None:
+        """A 16S.* preset switches to 16S mode, any other preset back to virome."""
+        if name is None or self._mode_combo is None:
+            return
+        mode = "16S" if name.startswith("16S.") else "virome"
+        if mode != self._mode_combo.currentData():
+            QTimer.singleShot(0, lambda: self._switch_mode(mode, f"preset {name}"))
+
+    def _switch_mode(self, mode: str, trigger: str) -> None:
+        """Apply *mode* to the current form values and reload the form."""
+        if self._config is None:
+            return
+        try:
+            new_cfg, changes = self._build_config().with_mode(mode)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Mode switch failed: %s", exc)
+            self.status_message.emit(f"Could not switch to {mode} mode: {exc}")
+            return
+        self.load_config(new_cfg)
+        self.config_changed.emit(new_cfg)
+        label = next(k for k, v in _MODE_LABELS.items() if v == mode)
+        if changes:
+            details = ", ".join(
+                f"{_MODE_KEY_LABELS.get(key, key)} {_fmt_mode_value(old, key)}→{_fmt_mode_value(new, key)}"
+                for key, old, new in changes
+            )
+            msg = f"{label} mode ({trigger}): {details}"
+        else:
+            msg = f"{label} mode ({trigger}): settings already match"
+        self._status_label.setText(f"{label} mode applied.")
+        self._status_label.setStyleSheet("color: #16a34a; font-size: 11px;")
+        self.status_message.emit(msg)
+
+    # ==================================================================
     # Apply
     # ==================================================================
 
@@ -1076,31 +1144,18 @@ class ConfigEditorWidget(QScrollArea):
 
         # BgFilter (nested under preprocess)
         bgf_data = cfg.preprocess.bgfilter.model_dump()
-        # Merge selections from both per-aligner host pickers
         _selected_hosts: list[str] = []
         if self._host_picker_mm2 is not None:
             _selected_hosts.extend(v for v in self._host_picker_mm2.get_value().split(",") if v)
-        if self._host_picker_bwa is not None:
-            _selected_hosts.extend(v for v in self._host_picker_bwa.get_value().split(",") if v)
         if _selected_hosts:
             bgf_data["bgfilter"] = ",".join(_selected_hosts)
         elif self._host_picker is not None:
             bgf_data["bgfilter"] = self._host_picker.get_value()
-        # Flat top-level fields
-        for field in ("aligner",):
-            w = self._field_widgets.get(f"bgfilter.{field}")
-            if w is not None:
-                bgf_data[field] = self._read_widget_value(w)
         # Nested minimap sub-fields
         for field in ("c", "m", "s", "save_mmi_index"):
             w = self._field_widgets.get(f"bgfilter.minimap.{field}")
             if w is not None:
                 bgf_data["minimap"][field] = self._read_widget_value(w)
-        # Nested bwa_mem sub-fields
-        for field in ("T", "min_score", "min_mapq"):
-            w = self._field_widgets.get(f"bgfilter.bwa_mem.{field}")
-            if w is not None:
-                bgf_data["bwa_mem"][field] = self._read_widget_value(w)
         bgfilter = BgFilterConfig(**bgf_data)
 
         # Preprocessing subsample
@@ -1142,7 +1197,7 @@ class ConfigEditorWidget(QScrollArea):
 
         # Assembly
         asm_data = cfg.assembly.model_dump()
-        for field_name in ("aligner", "min_coverage", "min_ac", "refaccs", "database"):
+        for field_name in ("min_coverage", "min_ac", "refaccs", "database"):
             w = self._field_widgets.get(f"assembly.{field_name}")
             if w is not None:
                 asm_data[field_name] = self._read_widget_value(w)
@@ -1161,11 +1216,6 @@ class ConfigEditorWidget(QScrollArea):
             w = self._field_widgets.get(f"assembly.minimap.{field_name}")
             if w is not None:
                 asm_data["minimap"][field_name] = self._read_widget_value(w)
-        # Nested bwa_mem sub-fields
-        for field_name in ("T", "min_score", "min_mapq"):
-            w = self._field_widgets.get(f"assembly.bwa_mem.{field_name}")
-            if w is not None:
-                asm_data["bwa_mem"][field_name] = self._read_widget_value(w)
         assembly = AssemblyConfig(**asm_data)
 
         # EM
@@ -1396,19 +1446,7 @@ class ConfigEditorWidget(QScrollArea):
 
         bgf = preprocess.bgfilter
 
-        # Aligner selector (top)
-        aligner_combo = QComboBox()
-        for opt in ("minimap2", "bwa"):
-            aligner_combo.addItem(opt)
-        idx = aligner_combo.findText(bgf.aligner)
-        if idx >= 0:
-            aligner_combo.setCurrentIndex(idx)
-        self._field_widgets["bgfilter.aligner"] = aligner_combo
-        hf_form.addRow("Aligner:", aligner_combo)
-
-        # Split host keys by search type
         mm2_keys = [k for k, e in config.host_databases.items() if e.search.lower() in ("minimap2", "minimap")]
-        bwa_keys  = [k for k, e in config.host_databases.items() if e.search.lower() == "bwa"]
         selected_csv = bgf.bgfilter
         selected_set = {v.strip() for v in selected_csv.split(",") if v.strip()}
 
@@ -1418,11 +1456,6 @@ class ConfigEditorWidget(QScrollArea):
         )
         hf_form.addRow("Minimap2 bgfilters:", self._host_picker_mm2)
 
-        self._host_picker_bwa = _HostGenomePicker(
-            host_db_keys=bwa_keys,
-            selected_csv=",".join(k for k in bwa_keys if k in selected_set),
-        )
-        hf_form.addRow("BWA mem bgfilter:", self._host_picker_bwa)
 
         # Minimap2 sub-section
         hf_form.addRow(_make_section_label("Minimap2 options:"), QWidget())
@@ -1438,18 +1471,6 @@ class ConfigEditorWidget(QScrollArea):
             lbl = _FIELD_LABELS.get(key) or field_name.replace("_", " ").title()
             hf_form.addRow("  " + lbl + ":", w)
 
-        # BWA mem sub-section
-        hf_form.addRow(_make_section_label("BWA mem options:"), QWidget())
-        for key, field_info, cur_val in [
-            ("bgfilter.bwa_mem.T",         BgFilterBwaMemConfig.model_fields["T"],         bgf.bwa_mem.T),
-            ("bgfilter.bwa_mem.min_score", BgFilterBwaMemConfig.model_fields["min_score"], bgf.bwa_mem.min_score),
-            ("bgfilter.bwa_mem.min_mapq",  BgFilterBwaMemConfig.model_fields["min_mapq"],  bgf.bwa_mem.min_mapq),
-        ]:
-            field_name = key.split(".")[-1]
-            w = self._create_widget(field_info, field_name, key, cur_val)
-            self._field_widgets[key] = w
-            lbl = _FIELD_LABELS.get(key) or field_name.replace("_", " ").title()
-            hf_form.addRow("  " + lbl + ":", w)
 
         hflt_sec.set_content_layout(hf_form)
         vbox.addWidget(hflt_sec)
@@ -1458,7 +1479,7 @@ class ConfigEditorWidget(QScrollArea):
         return section
 
     def _build_assembly_section(self, asm: AssemblyConfig) -> _CollapsibleSection:
-        """Assembly: aligner, minimap/bwa sub-sections, consensus thresholds."""
+        """Assembly: minimap2 mapping, consensus thresholds."""
         section = _CollapsibleSection("Assembly")
         form = QFormLayout()
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
@@ -1510,16 +1531,6 @@ class ConfigEditorWidget(QScrollArea):
         sep0.setFrameShape(QFrame.Shape.HLine)
         form.addRow(sep0)
 
-        # Aligner selector
-        aligner_combo = QComboBox()
-        for opt in ("minimap2", "bwa"):
-            aligner_combo.addItem(opt)
-        idx = aligner_combo.findText(asm.aligner)
-        if idx >= 0:
-            aligner_combo.setCurrentIndex(idx)
-        self._field_widgets["assembly.aligner"] = aligner_combo
-        form.addRow("Aligner:", aligner_combo)
-
         # Minimap2 sub-section (no save_mmi_index)
         form.addRow(_make_section_label("Minimap2 options:"), QWidget())
         for key, field_info, cur_val in [
@@ -1528,19 +1539,6 @@ class ConfigEditorWidget(QScrollArea):
             ("assembly.minimap.s", AssemblyMinimapConfig.model_fields["s"], asm.minimap.s),
             ("assembly.minimap.k", AssemblyMinimapConfig.model_fields["k"], asm.minimap.k),
             ("assembly.minimap.w", AssemblyMinimapConfig.model_fields["w"], asm.minimap.w),
-        ]:
-            field_name = key.split(".")[-1]
-            w = self._create_widget(field_info, field_name, key, cur_val)
-            self._field_widgets[key] = w
-            lbl = _FIELD_LABELS.get(key) or field_name.replace("_", " ").title()
-            form.addRow("  " + lbl + ":", w)
-
-        # BWA mem sub-section
-        form.addRow(_make_section_label("BWA mem options:"), QWidget())
-        for key, field_info, cur_val in [
-            ("assembly.bwa_mem.T",         BgFilterBwaMemConfig.model_fields["T"],         asm.bwa_mem.T),
-            ("assembly.bwa_mem.min_score", BgFilterBwaMemConfig.model_fields["min_score"], asm.bwa_mem.min_score),
-            ("assembly.bwa_mem.min_mapq",  BgFilterBwaMemConfig.model_fields["min_mapq"],  asm.bwa_mem.min_mapq),
         ]:
             field_name = key.split(".")[-1]
             w = self._create_widget(field_info, field_name, key, cur_val)
@@ -1686,24 +1684,12 @@ class ConfigEditorWidget(QScrollArea):
         bgfilter: BgFilterConfig,
         config: EMtraceConfig,
     ) -> _CollapsibleSection:
-        """Host filtering: aligner selector, per-aligner genome lists, score thresholds."""
+        """Host filtering: host genome list and minimap2 thresholds."""
         section = _CollapsibleSection("Background Filtering")
         form = QFormLayout()
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
 
-        # Aligner selector (top)
-        aligner_combo = QComboBox()
-        for opt in ("minimap2", "bwa"):
-            aligner_combo.addItem(opt)
-        idx = aligner_combo.findText(bgfilter.aligner)
-        if idx >= 0:
-            aligner_combo.setCurrentIndex(idx)
-        self._field_widgets["bgfilter.aligner"] = aligner_combo
-        form.addRow("Aligner:", aligner_combo)
-
-        # Split host keys by search type
         mm2_keys = [k for k, e in config.host_databases.items() if e.search.lower() in ("minimap2", "minimap")]
-        bwa_keys  = [k for k, e in config.host_databases.items() if e.search.lower() == "bwa"]
         selected_set = {v.strip() for v in bgfilter.bgfilter.split(",") if v.strip()}
 
         self._host_picker_mm2 = _HostGenomePicker(
@@ -1712,11 +1698,6 @@ class ConfigEditorWidget(QScrollArea):
         )
         form.addRow("Minimap2 bgfilters:", self._host_picker_mm2)
 
-        self._host_picker_bwa = _HostGenomePicker(
-            host_db_keys=bwa_keys,
-            selected_csv=",".join(k for k in bwa_keys if k in selected_set),
-        )
-        form.addRow("BWA mem bgfilter:", self._host_picker_bwa)
 
         # Minimap2 sub-section
         form.addRow(_make_section_label("Minimap2 options:"), QWidget())
@@ -1732,18 +1713,6 @@ class ConfigEditorWidget(QScrollArea):
             lbl = _FIELD_LABELS.get(key) or field_name.replace("_", " ").title()
             form.addRow("  " + lbl + ":", w)
 
-        # BWA mem sub-section
-        form.addRow(_make_section_label("BWA mem options:"), QWidget())
-        for key, field_info, cur_val in [
-            ("bgfilter.bwa_mem.T",         BgFilterBwaMemConfig.model_fields["T"],         bgfilter.bwa_mem.T),
-            ("bgfilter.bwa_mem.min_score", BgFilterBwaMemConfig.model_fields["min_score"], bgfilter.bwa_mem.min_score),
-            ("bgfilter.bwa_mem.min_mapq",  BgFilterBwaMemConfig.model_fields["min_mapq"],  bgfilter.bwa_mem.min_mapq),
-        ]:
-            field_name = key.split(".")[-1]
-            w = self._create_widget(field_info, field_name, key, cur_val)
-            self._field_widgets[key] = w
-            lbl = _FIELD_LABELS.get(key) or field_name.replace("_", " ").title()
-            form.addRow("  " + lbl + ":", w)
 
         section.set_content_layout(form)
         return section
@@ -1772,6 +1741,7 @@ class ConfigEditorWidget(QScrollArea):
             ann1=ann.ann1,
             ann2=ann.ann2,
         )
+        self._strategy_bar.preset_selected.connect(self._on_preset_selected)
         vbox.addWidget(self._strategy_bar)
 
         sep = QFrame()
@@ -2043,8 +2013,8 @@ class ConfigEditorWidget(QScrollArea):
         self._field_widgets.clear()
         self._host_picker = None
         self._host_picker_mm2 = None
-        self._host_picker_bwa = None
         self._strategy_bar = None
+        self._mode_combo = None
         while self._vbox.count():
             item = self._vbox.takeAt(0)
             w = item.widget()
@@ -2057,6 +2027,38 @@ class ConfigEditorWidget(QScrollArea):
 # ===========================================================================
 # Module-level helpers
 # ===========================================================================
+
+_MODE_LABELS = {"Virome": "virome", "16S rRNA": "16S"}
+
+# Short names for the settings an analysis-mode switch changes.
+_MODE_KEY_LABELS = {
+    "report.tail": "tail trim",
+    "annotation.anns": "preset",
+    "annotation.minimap.max_target_seqs": "minimap2 -N",
+    "annotation.minimap.s": "-s",
+    "annotation.minimap.m": "-m",
+    "em.temp": "EM temp",
+    "preprocess.bgfilter.bgfilter": "host filter",
+    "preprocess.porechop_abi.no_split": "read splitting",
+    "preprocess.porechop_abi.min_split_read_size": "min split piece",
+    "preprocess.chopper.minlength": "min length",
+    "preprocess.chopper.maxlength": "max length",
+}
+
+
+def _fmt_mode_value(value: Any, key: str = "") -> str:
+    if isinstance(value, bool):
+        if key.endswith(".no_split"):
+            value = not value      # shown as "read splitting"
+        return "on" if value else "off"
+    if value == "0":
+        return "none"
+    if value == float("inf"):
+        return "no limit"
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
+
 
 def _clear_layout(layout) -> None:
     while layout.count():

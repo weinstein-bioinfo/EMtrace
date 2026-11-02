@@ -141,7 +141,7 @@ class PorechopABIConfig(BaseModel):
     extra_end_trim: int = 2                 # extra bases removed next to end adapters
     end_threshold: float = 75.0             # min % identity for end adapter removal
     # middle adapter settings
-    no_split: bool = False                  # skip splitting reads at middle adapters
+    no_split: bool = True                   # skip splitting reads at middle adapters
     discard_middle: bool = False            # discard reads with middle adapters
     middle_threshold: float = 90.0          # min % identity for middle adapter detection
     extra_middle_trim_good_side: int = 10   # extra bases removed on good side of middle adapter
@@ -220,22 +220,11 @@ class BgFilterMinimapConfig(BaseModel):
     params: str = ""             # additional CLI flags (appended verbatim)
 
 
-class BgFilterBwaMemConfig(BaseModel):
-    """bwa mem alignment parameters for host filtering."""
-
-    T: int = 30                  # -T  minimum alignment score threshold passed to bwa mem
-    min_score: int = 100         # post-alignment: min AS tag value to call a read as host
-    min_mapq: int = 0            # post-alignment: min MAPQ value to call a read as host
-    params: str = ""             # additional CLI flags (appended verbatim)
-
-
 class BgFilterConfig(BaseModel):
     """Background (host) filtering settings."""
 
     bgfilter: str = "Homo_sapiens"      # CSV of host genome keys to filter against
-    aligner: str = "minimap2"           # aligner for host filtering: bwa | minimap2
     minimap: BgFilterMinimapConfig = Field(default_factory=BgFilterMinimapConfig)
-    bwa_mem: BgFilterBwaMemConfig = Field(default_factory=BgFilterBwaMemConfig)
 
 
 class SubsampleConfig(BaseModel):
@@ -282,7 +271,7 @@ class MinimapConfig(BaseModel):
 class DiamondBlastpConfig(BaseModel):
     """Diamond BLASTP/BLASTX annotation search settings."""
 
-    bitscore: int = 200                     # min bitscore to keep a hit
+    bitscore: int = 80                      # min bitscore to keep a hit (benchmarked chain2)
     evalue: float = 10                      # max e-value
     mode: str = "very-sensitive"            # sensitivity mode
     max_target_seqs: int = 5               # max target sequences per query
@@ -292,7 +281,7 @@ class DiamondBlastpConfig(BaseModel):
 class OrfipyConfig(BaseModel):
     """Orfipy ORF detection settings."""
 
-    min_len: int = 300                      # min ORF length (nt)
+    min_len: int = 90                       # min ORF length (nt; benchmarked chain2)
     max_len: Union[int, float] = float("inf")  # max ORF length (nt), INF = no limit
     table: int = 1                          # genetic code table (NCBI)
     partial_5: bool = False                 # allow ORFs missing start codon
@@ -404,9 +393,7 @@ class AssemblyMedakaConfig(BaseModel):
 class AssemblyConfig(BaseModel):
     """Reference-based assembly settings."""
 
-    aligner: str = "minimap2"           # aligner for mapping reads to reference: bwa|minimap2
     minimap: AssemblyMinimapConfig = Field(default_factory=AssemblyMinimapConfig)
-    bwa_mem: BgFilterBwaMemConfig = Field(default_factory=BgFilterBwaMemConfig)
     refseqs: str = ""                   # CSV of FASTA paths for reference-based assembly
     refaccs: str = ""                   # CSV of Entrez accessions for reference-based assembly
     database: str = ""                  # databases.<key> used as ref source in offline mode (e.g. 'minimap.assembly')
@@ -510,7 +497,7 @@ class DatabaseEntry(BaseModel):
     accession: str = "NA"
     db: str
     name: str
-    search: str  # Minimap2 | Blastn | Blastp | Diamond | bwa
+    search: str  # Minimap2 | Blastn | Blastp | Diamond
     url: str = "NA"
     urls: List[str] = Field(default_factory=list)  # multiple source URLs (minimap2 multi-file)
     group: str = "general"  # display group: "general" | "16S" | user-defined
@@ -711,6 +698,52 @@ def _accession_from_db_path(db: str) -> str:
     return m.group(1) if m else "NA"
 
 
+ANALYSIS_MODES = ("virome", "16S")
+
+
+def _leaf_paths(d: Dict[str, Any], prefix: tuple = ()) -> list[tuple]:
+    """Key paths of the non-mapping values in a nested dict."""
+    paths = []
+    for k, v in d.items():
+        if isinstance(v, dict):
+            paths.extend(_leaf_paths(v, prefix + (k,)))
+        else:
+            paths.append(prefix + (k,))
+    return paths
+
+
+def _get_path(obj: Any, path: tuple) -> Any:
+    for k in path:
+        obj = getattr(obj, k)
+    return obj
+
+
+def _set_path(obj: Any, path: tuple, value: Any) -> None:
+    for k in path[:-1]:
+        obj = getattr(obj, k)
+    setattr(obj, path[-1], value)
+
+
+def _drop_bwa(section: Dict[str, Any], where: str) -> Dict[str, Any]:
+    """Strip the retired bwa settings (``aligner``, ``bwa_mem``) from a config section.
+
+    Configs written before EMtrace 1.0.1 still carry them; they load, with a
+    warning, and minimap2 is used.
+    """
+    section = dict(section)
+    aligner = section.pop("aligner", None)
+    bwa_mem = section.pop("bwa_mem", None)
+    if aligner is not None and str(aligner).lower().startswith("bwa"):
+        logger.warning(
+            "%s.aligner: bwa is not supported any more; using minimap2", where,
+        )
+    elif bwa_mem is not None:
+        logger.warning(
+            "%s.bwa_mem: bwa is not supported any more; settings ignored", where,
+        )
+    return section
+
+
 def _parse_host_databases_section(section: Dict[str, Any]) -> Dict[str, DatabaseEntry]:
     """Parse the ``host.databases:`` YAML section into a ``Dict[str, DatabaseEntry]``.
 
@@ -725,6 +758,11 @@ def _parse_host_databases_section(section: Dict[str, Any]) -> Dict[str, Database
         if key == "sources" or not isinstance(val, dict):
             continue
         val = dict(val)
+        if str(val.get("search", "")).lower() == "bwa":
+            logger.warning(
+                "host.databases.%s: bwa is not supported any more; entry skipped", key,
+            )
+            continue
         val.setdefault("name", key)
         val.setdefault("search", "Minimap2")
         entry = DatabaseEntry(**val)
@@ -866,6 +904,11 @@ class EMtraceConfig(BaseModel):
         wholesale, so a profile that names ``parasite_genera`` or
         ``anns.options`` sets the whole list rather than appending to it.
         """
+        return cls._from_raw(_deep_merge(cls._default_raw(), cls._profile_raw(name)))
+
+    @classmethod
+    def _profile_raw(cls, name: str) -> Dict[str, Any]:
+        """A bundled profile's overlay, parsed but not merged."""
         config_dir = importlib.resources.files("emtrace") / "config"
         profile_yaml = config_dir / f"{name}.yaml"
         from emtrace.core.exceptions import ConfigurationError
@@ -881,8 +924,56 @@ class EMtraceConfig(BaseModel):
             )
         with importlib.resources.as_file(profile_yaml) as path:
             with open(path) as fh:
-                overlay = yaml.safe_load(fh) or {}
-        return cls._from_raw(_deep_merge(cls._default_raw(), overlay))
+                return yaml.safe_load(fh) or {}
+
+    # ------------------------------------------------------------------
+    # Analysis mode: virome (default.yaml) or 16S (the 16S profile)
+    # ------------------------------------------------------------------
+
+    @property
+    def mode(self) -> str:
+        """``"16S"`` when annotation targets a 16S database, else ``"virome"``.
+
+        Decided by the annotation preset (``16S.*``), or, for a custom
+        database list, by the group of its round-1 databases.
+        """
+        anns = self.annotation.anns or ""
+        if anns:
+            return "16S" if anns.startswith("16S.") else "virome"
+        keys = [k.strip() for k in (self.annotation.ann1 or "").split(",") if k.strip()]
+        groups = {self.databases[k].group for k in keys if k in self.databases}
+        return "16S" if groups == {"16S"} else "virome"
+
+    def with_mode(self, mode: str) -> tuple[EMtraceConfig, list[tuple[str, Any, Any]]]:
+        """Return a copy switched to *mode*, and the settings that changed.
+
+        The settings involved are exactly those the 16S profile names. For
+        ``"16S"`` they take the profile's values, for ``"virome"`` the
+        default.yaml values; every other setting is kept. The annotation
+        preset is kept when it already belongs to *mode* (e.g. ``16S.emu``),
+        otherwise it becomes the mode's default preset.
+
+        Changes are ``(dotted key, old, new)``.
+        """
+        if mode not in ANALYSIS_MODES:
+            raise ValueError(f"mode must be one of {ANALYSIS_MODES}, got {mode!r}")
+        source = (
+            EMtraceConfig.from_profile("16S") if mode == "16S"
+            else EMtraceConfig.create_default()
+        )
+        new = self.model_copy(deep=True)
+        changes: list[tuple[str, Any, Any]] = []
+        for path in _leaf_paths(self._profile_raw("16S")):
+            if path == ("annotation", "anns"):
+                if self.mode == mode and self.annotation.anns:
+                    continue
+                new.annotation.ann1 = ""
+                new.annotation.ann2 = ""
+            old, value = _get_path(self, path), _get_path(source, path)
+            if old != value:
+                _set_path(new, path, value)
+                changes.append((".".join(path), old, value))
+        return new, changes
 
     @classmethod
     def _default_raw(cls) -> Dict[str, Any]:
@@ -911,7 +1002,7 @@ class EMtraceConfig(BaseModel):
         pre_raw = raw.get("preprocess", {})
         chopper_raw = pre_raw.get("chopper", {})
         pabi_raw = pre_raw.get("porechop_abi", {})
-        bgf_raw = pre_raw.get("bgfilter", raw.get("bgfilter", {}))
+        bgf_raw = _drop_bwa(pre_raw.get("bgfilter", raw.get("bgfilter", {})), "bgfilter")
         pre_sub_raw = pre_raw.get("subsample", {})
         preprocess = PreprocessConfig(
             subsample=SubsampleConfig(**pre_sub_raw) if pre_sub_raw else SubsampleConfig(),
@@ -966,7 +1057,7 @@ class EMtraceConfig(BaseModel):
             annotation = AnnotationConfig()
 
         # Build assembly config
-        asm_raw = raw.get("assembly", {})
+        asm_raw = _drop_bwa(raw.get("assembly", {}), "assembly")
         assembly = AssemblyConfig(**asm_raw) if asm_raw else AssemblyConfig()
 
         # Build taxonomy config

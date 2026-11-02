@@ -24,8 +24,8 @@ class TestAnnotationConfig:
         cfg = AnnotationConfig()
         assert cfg.blastn.bitscore == 200
         assert cfg.minimap.s == 200
-        assert cfg.diamond_blastp.bitscore == 200
-        assert cfg.orfipy.min_len == 300
+        assert cfg.diamond_blastp.bitscore == 80    # benchmarked chain2
+        assert cfg.orfipy.min_len == 90             # nt, benchmarked chain2
 
     def test_override_blastn(self):
         cfg = AnnotationConfig(blastn=BlastnConfig(bitscore=100))
@@ -158,3 +158,51 @@ class TestTaxonomyFollowsDatabase:
         assert cfg.taxonomy.SILVA.db == "/db/silva.db"
         assert "taxonomy.ncbi.selected" in caplog.text
         assert "taxonomy.silva.selected" in caplog.text
+
+
+class TestRetiredBwa:
+    """Configs written before 1.0.1 carry bwa settings: they load, with a warning."""
+
+    def _load(self, tmp_dir: Path, text: str) -> EMtraceConfig:
+        p = tmp_dir / "old.yaml"
+        p.write_text(text)
+        return EMtraceConfig.from_yaml(p)
+
+    def test_bwa_aligner_warns_and_uses_minimap2(self, tmp_dir: Path, caplog):
+        cfg = self._load(tmp_dir, (
+            "preprocess:\n"
+            "  bgfilter:\n"
+            "    aligner: bwa\n"
+            "    bgfilter: Homo_sapiens\n"
+            "    bwa_mem: {T: 100}\n"
+            "assembly:\n"
+            "  aligner: bwa\n"
+        ))
+        assert "bgfilter.aligner: bwa is not supported any more" in caplog.text
+        assert "assembly.aligner: bwa is not supported any more" in caplog.text
+        assert cfg.bgfilter.bgfilter == "Homo_sapiens"
+        assert not hasattr(cfg.bgfilter, "aligner")
+        assert not hasattr(cfg.assembly, "bwa_mem")
+
+    def test_bwa_mem_block_with_minimap2_warns(self, tmp_dir: Path, caplog):
+        self._load(tmp_dir, (
+            "assembly:\n"
+            "  aligner: minimap2\n"
+            "  bwa_mem: {T: 80}\n"
+        ))
+        assert "assembly.bwa_mem: bwa is not supported any more" in caplog.text
+
+    def test_bwa_host_entry_skipped(self, tmp_dir: Path, caplog):
+        cfg = self._load(tmp_dir, (
+            "host.databases:\n"
+            "  Homo_sapiens: {db: /x/hs.fna.gz}\n"
+            "  Homo_sapiens_bwa: {db: /x/hs.fna.gz, search: bwa}\n"
+        ))
+        assert "Homo_sapiens" in cfg.host_databases
+        assert "Homo_sapiens_bwa" not in cfg.host_databases
+        assert "host.databases.Homo_sapiens_bwa: bwa is not supported" in caplog.text
+
+    def test_bundled_defaults_have_no_bwa(self, caplog):
+        cfg = EMtraceConfig.create_default()
+        assert "bwa" not in caplog.text.lower()
+        assert all(e.search.lower() != "bwa" for e in cfg.host_databases.values())

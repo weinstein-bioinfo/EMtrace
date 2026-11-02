@@ -216,18 +216,12 @@ def check_installed(db_path: Path) -> bool:
     )
 
 
-def check_host_installed(db_path: Path, search: str = "minimap2") -> bool:
+def check_host_installed(db_path: Path) -> bool:
     """Return True if the host genome database is available on disk.
 
-    * **minimap2**: the concatenated FASTA/gz is the database; minimap2
-      indexes on the fly.  The exact *db_path* file must exist.
-    * **bwa**: indexing produces ``<db>.amb``, ``<db>.ann``, ``<db>.bwt``,
-      ``<db>.pac``, ``<db>.sa``.  A glob ``<db>.*`` finds these when the
-      FASTA itself is absent.
+    The concatenated FASTA/gz is the database (minimap2 indexes on the fly),
+    so the exact *db_path* file must exist.
     """
-    if search.lower() == "bwa":
-        return any(db_path.parent.glob(db_path.name + ".*"))
-    # minimap2 (default): exact file must exist
     return db_path.exists()
 
 
@@ -317,7 +311,7 @@ def install_host_minimap2(
     """
     if not urls:
         raise DatabaseNotConfiguredError(key)
-    if not force and check_host_installed(db_path, "minimap2"):
+    if not force and check_host_installed(db_path):
         raise DatabaseAlreadyInstalledError(key, db_path)
 
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -382,18 +376,10 @@ def prebuild_host_index(
         raise DatabaseNotConfiguredError(key)
     entry = cfg.host_databases[host_key]
 
-    if entry.search.lower() == "bwa":
-        # .mmi prebuild is minimap2-only; BWA indexes are built by bwa itself.
-        logger.warning(
-            "Host '%s' uses bwa — skipping .mmi prebuild (build via bwa index)",
-            host_key,
-        )
-        return
-
     db_path = _host_db_path(entry)
 
     # 1. FASTA present?
-    if force or not check_host_installed(db_path, "minimap2"):
+    if force or not check_host_installed(db_path):
         install_host_minimap2(
             host_key, entry.url_list, db_path,
             progress_cb=progress_cb, force=force,
@@ -440,33 +426,6 @@ def prebuild_host_filters(
             logger.warning("Skipping '%s': %s", key, exc)
         except Exception as exc:
             logger.error("Failed to build index for '%s': %s", key, exc)
-
-
-def install_host_bwa(
-    key: str,
-    url: str,
-    db_path: Path,
-    progress_cb: ProgressCallback = None,
-    force: bool = False,
-) -> None:
-    """Download and install a BWA-indexed host genome tarball.
-
-    The tarball is extracted into ``db_path.parent``; the resulting index
-    files (``*.bwt``, ``*.sa``, …) are the installed database.
-    """
-    if not url or url in ("NA", "0"):
-        raise DatabaseNotConfiguredError(key)
-    if not force and check_host_installed(db_path, "bwa"):
-        raise DatabaseAlreadyInstalledError(key, db_path)
-
-    dest_dir = db_path.parent
-    tmp = download_to_temp(url, dest_dir, progress_cb)
-    if _is_tarball(url):
-        extract_tarball(tmp, dest_dir)
-    else:
-        move_file(tmp, db_path)
-
-    logger.info("Host genome (bwa) '%s' installed in: %s", key, dest_dir)
 
 
 def install_host_database(
@@ -771,23 +730,13 @@ def _install_host_by_key(
 ) -> None:
     entry = cfg.host_databases[key]
     db_path = Path(os.path.expandvars(os.path.expanduser(entry.db)))
-    if entry.search.lower() == "bwa":
-        url = entry.url_list[0] if entry.url_list else ""
-        install_host_bwa(
-            key=key,
-            url=url,
-            db_path=db_path,
-            progress_cb=progress_cb,
-            force=force,
-        )
-    else:  # minimap2 (default)
-        install_host_minimap2(
-            key=key,
-            urls=entry.url_list,
-            db_path=db_path,
-            progress_cb=progress_cb,
-            force=force,
-        )
+    install_host_minimap2(
+        key=key,
+        urls=entry.url_list,
+        db_path=db_path,
+        progress_cb=progress_cb,
+        force=force,
+    )
 
 
 # ------------------------------------------------------------------
@@ -855,7 +804,7 @@ def database_status(cfg) -> Tuple[List[dict], List[dict]]:
         db_path = cfg.resolve_db_path(key) or Path(
             os.path.expandvars(os.path.expanduser(entry.db))
         )
-        installed = check_host_installed(db_path, entry.search)
+        installed = check_host_installed(db_path)
         urls = entry.url_list
         # url: display string for the Source URL column
         if len(urls) > 1:

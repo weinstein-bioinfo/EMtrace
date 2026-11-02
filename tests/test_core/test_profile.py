@@ -92,7 +92,7 @@ def test_profile_inherits_everything_it_does_not_name(s16, default):
     assert s16.report.min_qcov == default.report.min_qcov
     assert s16.report.sort_reads == default.report.sort_reads
     assert s16.taxonomy.NCBI.db == default.taxonomy.NCBI.db
-    assert s16.preprocess.bgfilter.aligner == default.preprocess.bgfilter.aligner
+    assert s16.preprocess.bgfilter.minimap == default.preprocess.bgfilter.minimap
 
 
 def test_profile_merge_is_onto_default_yaml_not_model_defaults(s16):
@@ -182,3 +182,53 @@ def test_tail_flags_are_offered_on_run():
     assert "--tail-viruses" in out
     # The help must steer people away from the unrelated read-end trimmer.
     assert "--tailcrop" in out
+
+
+# ------------------------------------------------------------------ #
+# Analysis mode (virome / 16S), as the GUI switches it
+# ------------------------------------------------------------------ #
+
+def test_mode_follows_annotation(default, s16):
+    assert default.mode == "virome"
+    assert s16.mode == "16S"
+    custom = default.model_copy(deep=True)
+    custom.annotation.anns = None
+    custom.annotation.ann1 = "minimap.rrnDB.dedup"
+    assert custom.mode == "16S"
+
+
+def test_with_mode_16S_matches_profile(default, s16):
+    new, changes = default.with_mode("16S")
+    assert new.model_dump() == s16.model_dump()
+    assert ("annotation.minimap.max_target_seqs", 5, 25) in changes
+
+
+def test_with_mode_round_trip_restores_defaults(default):
+    there, _ = default.with_mode("16S")
+    back, changes = there.with_mode("virome")
+    assert back.model_dump() == default.model_dump()
+    assert changes
+
+
+def test_with_mode_keeps_settings_outside_the_profile(default):
+    cfg = default.model_copy(deep=True)
+    cfg.runtime.num_threads = 3
+    cfg.assembly.min_coverage = 20
+    new, _ = cfg.with_mode("16S")
+    assert new.runtime.num_threads == 3
+    assert new.assembly.min_coverage == 20
+
+
+def test_with_mode_keeps_a_preset_of_the_target_mode(default):
+    # The preset-triggered switch: the user picked 16S.emu, then the mode follows.
+    cfg = default.model_copy(deep=True)
+    cfg.annotation.anns = "16S.emu"
+    new, changes = cfg.with_mode("16S")
+    assert new.annotation.anns == "16S.emu"
+    assert "annotation.anns" not in [key for key, _, _ in changes]
+    assert new.annotation.minimap.max_target_seqs == 25
+
+
+def test_with_mode_rejects_unknown(default):
+    with pytest.raises(ValueError):
+        default.with_mode("metagenome")

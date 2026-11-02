@@ -409,6 +409,9 @@ class MainWindow(QMainWindow):
 
         # Config editor Apply → update in-memory config.
         self._main_content.config_page.config_changed.connect(self._on_config_changed)
+        self._main_content.config_page.status_message.connect(
+            lambda msg: self.statusBar().showMessage(msg, 30000)
+        )
 
         # Step-panel double-click on status column → switch to Files tab.
         self._step_panel.view_requested.connect(self._on_view_step)

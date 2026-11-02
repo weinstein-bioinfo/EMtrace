@@ -81,7 +81,7 @@ datas = [
     # these through importlib.resources, so they must keep their package path.
     (str(PKG_ROOT / 'config' / 'default.yaml'),
      os.path.join('emtrace', 'config')),
-    (str(PKG_ROOT / 'config' / 'default.hostdbs.yaml'),
+    (str(PKG_ROOT / 'config' / '16S.yaml'),          # profile: GUI analysis mode, --profile 16S
      os.path.join('emtrace', 'config')),
 ]
 
@@ -312,7 +312,7 @@ if IS_DARWIN:
 
     # --------------------------------------------------------------
     # Post-BUNDLE: create the versioned .dmg
-    # e.g. dist/EMtrace-macos-arm64-1.0.0.dmg
+    # e.g. dist/EMtrace-macos-arm64-1.0.1.dmg
     # --------------------------------------------------------------
     _app_path = os.path.join(DISTPATH, f'EMtrace-{BUILD_ARCH}.app')  # noqa: F821
     _dmg_path = os.path.join(                                            # noqa: F821
@@ -327,7 +327,7 @@ if IS_DARWIN:
 
 # ------------------------------------------------------------------
 # Windows: create the versioned .zip
-# e.g. dist/EMtrace-win-x86_64-1.0.0.zip
+# e.g. dist/EMtrace-win-x86_64-1.0.1.zip
 # ------------------------------------------------------------------
 if IS_WIN:
     import zipfile as _zipfile

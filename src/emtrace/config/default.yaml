@@ -55,7 +55,6 @@ preprocess:
   # Step 3: Host / background read filtering
   # emtrace run -p flt
   bgfilter:
-    aligner: 'minimap2'                 # aligner for host filtering: bwa | minimap2
     bgfilter: 'Homo_sapiens'            # CSV of host genomes to filter against
     minimap:
       c: true
@@ -64,11 +63,6 @@ preprocess:
       k: 0                              # k-mer size (-k); 0 = minimap/index default (15)
       w: 0                              # minimizer window (-w); 0 = minimap/index default (10)
       save_mmi_index: true              # build and reuse *.mmi index alongside the FASTA
-      params: ''                        # additional parameters
-    bwa_mem:
-      T: 100                             # minimum score (-T flag)
-      min_score: 100                    # post-alignment: min AS tag to call a read as host
-      min_mapq: 0                       # post-alignment: min MAPQ to call a read as host
       params: ''                        # additional parameters
 
 # read annotation settings
@@ -99,13 +93,13 @@ annotation:
     save_hits: false            # write raw PAF to disk for debugging
   # diamond blastp/blastx
   diamond_blastp:
-    bitscore: 200
+    bitscore: 80                # benchmarked chain2 value; short nanopore ORFs score low
     evalue: 10
     mode: 'very-sensitive'
     max_target_seqs: 5
     save_hits: false            # write raw Diamond tabular to disk for debugging
   orfipy:
-    min_len: 300
+    min_len: 90                 # min ORF length (nt); benchmarked chain2 value
     max_len: INF
     table: 1
     partial_5: False
@@ -142,7 +136,6 @@ em:
 
 # assembly settings
 assembly:
-  aligner: 'minimap2'                 # aligner for host filtering: bwa | minimap2
   bgfilter: 'Homo_sapiens'            # CSV of host genomes to filter against
   database: "minimap.assembly"
   minimap:                            # read-to-reference mapping (tuned for divergent samples)
@@ -153,11 +146,6 @@ assembly:
     w: 5                              # -w minimizer window (default 10)
     secondary: false                  # keep secondary alignments (--secondary=yes, up to -N n)
     n: 5
-  bwa_mem:
-    T: 80                             # minimum score (-T flag)
-    min_score: 80                    # post-alignment: min AS tag to call a read as host
-    min_mapq: 0                       # post-alignment: min MAPQ to call a read as host
-    params: ''                        # additional parameters
   refseqs:                  ""  # CSV of fasta for refbased assembly
   refaccs:                  ""  # CSV of Entrez accessions for refbased assembly
   # variant calling and consensus
@@ -521,11 +509,6 @@ host.databases:
     urls:
     - "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.40_GRCh38.p14/GCF_000001405.40_GRCh38.p14_genomic.fna.gz"
     - "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.40_GRCh38.p14/GCF_000001405.40_GRCh38.p14_rna.fna.gz"
-  Homo_sapiens_bwa:
-    accession: "GCF_000001405.40"
-    search: bwa
-    db: "$EMTRACE_DB_DIR/hostgenomes/GCF_000001405.40_genomic+rna.fna.gz"
-    url: "https://a3s.fi/lazypipe-hostgen/GCF_000001405.40_genomic+rna.tar.gz"
   Ixodes_persulcatus:
     accession: "GCA_013358835.2"
     db: "$EMTRACE_DB_DIR/hostgenomes/GCA_013358835.2_genomic+rna.fna.gz"

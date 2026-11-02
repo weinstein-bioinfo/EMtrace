@@ -268,12 +268,15 @@ class Pipeline:
         bgfilter : str
             Comma-separated bgfilter keys or FASTA paths.
         """
-        # Resolve annotation strategy → ann1/ann2
+        # Resolve annotation strategy → ann1/ann2.
+        # Precedence: CLI --anns > CLI --ann1/--ann2 > config anns > config ann1/ann2.
+        if not anns and not ann1:
+            anns = self.config.annotation.anns or ""
+            if not anns:
+                ann1 = self.config.annotation.ann1
+                ann2 = ann2 or self.config.annotation.ann2
         if anns:
             ann1, ann2 = self._resolve_strategy(anns)
-        elif not ann1:
-            ann1 = self.config.annotation.ann1
-            ann2 = ann2 or self.config.annotation.ann2
 
         # Parse ann1
         if ann1:

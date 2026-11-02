@@ -7,7 +7,7 @@ Pipeline:
      selected from the reads' hits (analysis/ref_select.py) and the choice
      is written to ``ref_selection.tsv``.
      All references are concatenated into a single combined FASTA.
-  2. Align reads to combined reference (minimap2 or bwa mem). Input: all
+  2. Align reads to combined reference with minimap2. Input: all
      host-filtered reads by default (assembly.input_reads); minimap2 with
      -k 11 -w 5 and minimap2's default -m/-s (assembly.minimap).
   3. samtools sort → fixmate → sort → markdup → index
@@ -85,9 +85,8 @@ def build_vcf_filters(config: AssemblyConfig) -> tuple[str, str]:
         consensus = f"({consensus}) && ({config.vcf_flt})"
     return report, consensus
 from emtrace.utils.paths import ensure_dir
-from emtrace.utils.shell import run as shell_run, run_shell
+from emtrace.utils.shell import run_shell
 from emtrace.wrappers.bcftools import Bcftools
-from emtrace.wrappers.bwa import BWA
 from emtrace.wrappers.medaka import Medaka
 from emtrace.wrappers.minimap2 import Minimap2
 from emtrace.wrappers.samtools import Samtools
@@ -205,8 +204,7 @@ class AssemblyStep(PipelineStep):
 
         # 1. Align reads to reference
         self.logger.info(
-            "Aligning reads to reference (%s, %s)...",
-            config.aligner,
+            "Aligning reads to reference (minimap2, %s)...",
             "paired-end" if reads_r2 is not None else "single-end",
         )
         self._align_to_ref(reads, refgen, sam_file, config, num_threads, reads_r2=reads_r2)
@@ -849,10 +847,7 @@ class AssemblyStep(PipelineStep):
     def _align_to_ref(self, reads: Path, refgen: Path, sam_out: Path,
                       config: AssemblyConfig, num_threads: int,
                       reads_r2: Optional[Path] = None) -> None:
-        if config.aligner.lower().startswith("bwa"):
-            self._align_bwa(reads, refgen, sam_out, config.bwa_mem, num_threads, reads_r2=reads_r2)
-        else:
-            self._align_minimap2(reads, refgen, sam_out, config.minimap, num_threads, reads_r2=reads_r2)
+        self._align_minimap2(reads, refgen, sam_out, config.minimap, num_threads, reads_r2=reads_r2)
 
     def _align_minimap2(self, reads: Path, refgen: Path, sam_out: Path,
                         mm_cfg, num_threads: int,
@@ -875,24 +870,6 @@ class AssemblyStep(PipelineStep):
             sam_output=True,
         )
         sam_out.write_text(stdout)
-
-    def _align_bwa(self, reads: Path, refgen: Path, sam_out: Path,
-                   bwa_cfg, num_threads: int,
-                   reads_r2: Optional[Path] = None) -> None:
-        bwa = BWA(num_threads=num_threads)
-        bwa.index(refgen)
-        cmd = [
-            bwa._tool_path, "mem",
-            "-t", str(num_threads),
-            "-T", str(bwa_cfg.T),
-        ]
-        if bwa_cfg.params:
-            cmd.extend(bwa_cfg.params.split())
-        cmd.extend([str(refgen), str(reads)])
-        if reads_r2 is not None:
-            cmd.append(str(reads_r2))
-        result = shell_run(cmd, check=True, capture=True, tool_name="bwa")
-        sam_out.write_text(result.stdout or "")
 
     def _tabix_index(self, vcf: Path) -> None:
         run_shell(f"tabix -f {vcf}", tool_name="tabix")

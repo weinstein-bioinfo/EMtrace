@@ -1,17 +1,9 @@
 """Background (host) filtering step — port of ``filter_host_reads()`` from SeqAn.pm.
 
 Depletes background/host reads from a FASTQ file by aligning against one or
-more host genome databases.  Two aligners are supported:
-
-``bwa`` (default)
-    Uses ``bwa mem`` + pure-Python SAM parsing (replaces Perl's sambamba +
-    seqkit).  BWA index is built automatically when missing.
-    Host DB lookup: any file matching ``<db>.*`` (index files).
-
-``minimap2``
-    Uses ``minimap2 -x map-ont`` + pure-Python PAF parsing.
-    Host DB lookup: the exact ``.fna.gz`` path stored in
-    ``host.databases.{key}.db``; minimap2 indexes on the fly.
+more host genome databases with ``minimap2 -x map-ont`` and pure-Python PAF
+parsing.  Host DB lookup: the exact ``.fna.gz`` path stored in
+``host.databases.{key}.db``; minimap2 indexes on the fly.
 
 Supports chained filtering over multiple host genomes.
 
@@ -51,14 +43,14 @@ if TYPE_CHECKING:
 
 @register_step(StepName.FLT)
 class BgFilterStep(PipelineStep):
-    """Deplete background/host reads using BWA (default) or minimap2.
+    """Deplete background/host reads using minimap2.
 
     Mirrors ``filter_host_reads()`` in ``Lazypipe::SeqAn``.
 
     For each host genome in ``sample.bgfilter_databases`` the step:
 
     1. Aligns current reads against the host database.
-    2. Collects mapped read IDs (from SAM or PAF, depending on aligner).
+    2. Collects mapped read IDs from the PAF output.
     3. Partitions the FASTQ: host-matched reads → per-host file;
        remaining reads → input for the next host filter or final output.
 
@@ -66,7 +58,7 @@ class BgFilterStep(PipelineStep):
     """
 
     step_name = "bgfilter"
-    step_description = "Background/host read depletion (BWA or minimap2)"
+    step_description = "Background/host read depletion (minimap2)"
 
     def validate_inputs(self, sample: PipelineJob, **kwargs) -> bool:
         if sample.input_reads is None or not Path(sample.input_reads).exists():
@@ -98,16 +90,12 @@ class BgFilterStep(PipelineStep):
         final_pass = sample.reads_dir / "reads.trim.hflt.fq.gz"
         reads_start = reads_in  # remember starting point before loop updates reads_in
         bgf_cfg = self.config.bgfilter
-        default_aligner = bgf_cfg.aligner.lower()
         save_mmi = bgf_cfg.minimap.save_mmi_index
         mm2_c: bool = bgf_cfg.minimap.c
         mm2_m: int = bgf_cfg.minimap.m
         mm2_s: int = bgf_cfg.minimap.s
         mm2_k: int = bgf_cfg.minimap.k
         mm2_w: int = bgf_cfg.minimap.w
-        min_T: int = bgf_cfg.bwa_mem.T
-        min_score: int = bgf_cfg.bwa_mem.min_score
-        min_mapq: int = bgf_cfg.bwa_mem.min_mapq
 
         for host_entry in host_dbs:
             host_db = host_entry.get("db", "")
@@ -117,40 +105,26 @@ class BgFilterStep(PipelineStep):
                 )
                 continue
 
-            # Per-entry aligner overrides the global default when "search" is set
-            aligner = host_entry.get("search", default_aligner).lower()
-
             label = self._make_label(host_entry)
             self.logger.info(
-                "Filtering against host '%s' using %s (%s)",
-                label, aligner, host_db,
+                "Filtering against host '%s' using minimap2 (%s)",
+                label, host_db,
             )
 
             reads_flt = sample.reads_dir / f"hflt.{label}.reads.fq.gz"
             reads_pass_tmp = sample.reads_dir / f"reads.hflt.{label}.tmp.fq.gz"
 
-            if aligner == "minimap2":
-                mapped_ids = self._align_minimap2(
-                    host_db=host_db,
-                    reads_in=reads_in,
-                    mm2_c=mm2_c,
-                    mm2_m=mm2_m,
-                    mm2_s=mm2_s,
-                    mm2_k=mm2_k,
-                    mm2_w=mm2_w,
-                    sample=sample,
-                    save_mmi=save_mmi,
-                )
-            else:
-                mapped_ids = self._align_bwa(
-                    host_db=host_db,
-                    reads_in=reads_in,
-                    min_T=min_T,
-                    min_score=min_score,
-                    min_mapq=min_mapq,
-                    sample=sample,
-                    log_file=log_path,
-                )
+            mapped_ids = self._align_minimap2(
+                host_db=host_db,
+                reads_in=reads_in,
+                mm2_c=mm2_c,
+                mm2_m=mm2_m,
+                mm2_s=mm2_s,
+                mm2_k=mm2_k,
+                mm2_w=mm2_w,
+                sample=sample,
+                save_mmi=save_mmi,
+            )
 
             self.logger.info("Host '%s': %d reads mapped", label, len(mapped_ids))
 
@@ -203,35 +177,6 @@ class BgFilterStep(PipelineStep):
         )
         label = str(label).split(".")[0].replace(" ", "_")
         return label or "host"
-
-    def _align_bwa(
-        self,
-        host_db: str,
-        reads_in: Path,
-        min_T: int,
-        min_score: int,
-        min_mapq: int,
-        sample: "PipelineJob",
-        log_file: Path,
-    ) -> Set[str]:
-        """Run BWA mem and return a set of mapped read IDs.
-
-        The BWA index is built automatically when ``<db>.amb`` / ``<db>.sa``
-        are missing.  SAM is parsed in pure Python; no sambamba required.
-        """
-        from emtrace.wrappers.bwa import BWA
-
-        bwa = BWA(num_threads=sample.num_threads)
-        sam_tmp = sample.reads_dir / "hostgen_bwa.sam"
-        return bwa.host_filter(
-            host_db=host_db,
-            query=reads_in,
-            score_threshold=min_T,
-            min_score=min_score,
-            min_mapq=min_mapq,
-            sam_tmp=sam_tmp,
-            log_file=log_file,
-        )
 
     def _align_minimap2(
         self,

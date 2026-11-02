@@ -134,8 +134,8 @@ xattr -dr com.apple.quarantine /Applications/EMtrace.app
 Each release lists SHA-256 checksums of the bundles. To check a download:
 
 ```bash
-shasum -a 256 EMtrace-macos-arm64-1.0.0.dmg                       # macOS
-Get-FileHash EMtrace-win-x86_64-1.0.0.zip -Algorithm SHA256       # Windows PowerShell
+shasum -a 256 EMtrace-macos-arm64-1.0.1.dmg                       # macOS
+Get-FileHash EMtrace-win-x86_64-1.0.1.zip -Algorithm SHA256       # Windows PowerShell
 ```
 
 <a id="building-from-source"></a>
@@ -350,6 +350,21 @@ in the pipeline.
   its alignment score reaches the configured minimum (`m` / `s`). A reusable
   `.mmi` index is built and cached alongside each genome.
 
+**NOTE:**
+The default minimum read length (`chopper.minlength: 400`) suits libraries of
+mostly long reads. For libraries with shorter reads, e.g. degraded RNA, short
+amplicons or field samples, it can discard a large share of the data. Check the
+read lengths before a run with [SeqKit](https://bioinf.shenwei.me/seqkit/)
+(`conda install -c bioconda seqkit`):
+
+```bash
+seqkit stats -a -T reads.fastq.gz
+```
+
+The `Q1`, `Q2` (median) and `N50` columns give the length distribution. If the
+median read length is near or below 400 bp, lower `minlength` (e.g. to 150, or
+100 for very short reads).
+
 **Annotation.** Reads are classified against the databases configured for round 1
 (`ann1`) and, optionally, round 2 (`ann2`); a named *strategy* (`anns`, e.g.
 `abv.1g`) can set both at once (see [Annotation strategies and
@@ -501,8 +516,13 @@ receives only the reads the nucleotide search left unclassified):
 
 <br>
 
-DIAMOND hits on short ORFs score low; the manuscript used `--min_diamond_bits 80`
-(the default bitscore threshold is 200).
+The protein search defaults, DIAMOND bitscore ≥ 80 and ORFs ≥ 90 nt
+(`annotation.diamond_blastp.bitscore`, `annotation.orfipy.min_len`), are the
+settings benchmarked with `vi.chain2` in the EMtrace manuscript. Nanopore read
+errors break reads into short ORFs, whose hits score low, so stricter values
+discard most genuine protein hits. The low threshold also admits more spurious
+hits: treat a species supported only by protein hits as tentative, and confirm it
+with a nucleotide hit, an assembly or a second method.
 
 **Feces / environmental samples.**
 

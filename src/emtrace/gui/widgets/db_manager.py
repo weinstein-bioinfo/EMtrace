@@ -1,9 +1,8 @@
 """Database Manager dialog — install and update EMtrace databases.
 
-Four tabs:
+Three tabs:
 - **Annotation databases** — minimap2/BLASTN/Diamond targets
-- **Host genomes (minimap2)** — multi-file FASTA concatenated for minimap2
-- **Host genomes (bwa)** — pre-built BWA index tarballs
+- **Host genomes** — multi-file FASTA concatenated for minimap2
 - **Taxonomy** — NCBI taxdump → SQLite; SILVA taxmap → SQLite
 
 Each tab has its own table (Key / Status / Path / Source URL / Action),
@@ -125,11 +124,10 @@ class DatabaseManagerDialog(QDialog):
         dir_row.addWidget(apply_btn)
         layout.addLayout(dir_row)
 
-        # Tab widget — four tabs
+        # Tab widget — three tabs
         self._tabs = QTabWidget()
         self._ann_table, ann_tab = self._make_tab("Annotation databases")
-        self._mm2_table, mm2_tab = self._make_tab("Host genomes (minimap2)")
-        self._bwa_table, bwa_tab = self._make_tab("Host genomes (bwa)")
+        self._mm2_table, mm2_tab = self._make_tab("Host genomes")
         self._tax_table, tax_tab = self._make_tab("Taxonomy")
 
         # Per-tab controls
@@ -140,10 +138,6 @@ class DatabaseManagerDialog(QDialog):
         (self._install_all_mm2_btn, self._update_all_mm2_btn,
          self._progress_mm2, self._status_label_mm2) = self._add_tab_controls(
             mm2_tab, self._on_install_all_missing_mm2, self._on_update_all_mm2)
-
-        (self._install_all_bwa_btn, self._update_all_bwa_btn,
-         self._progress_bwa, self._status_label_bwa) = self._add_tab_controls(
-            bwa_tab, self._on_install_all_missing_bwa, self._on_update_all_bwa)
 
         (self._install_all_tax_btn, self._update_all_tax_btn,
          self._progress_tax, self._status_label_tax) = self._add_tab_controls(
@@ -273,7 +267,7 @@ class DatabaseManagerDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _clear_tables(self) -> None:
-        for table in (self._ann_table, self._mm2_table, self._bwa_table, self._tax_table):
+        for table in (self._ann_table, self._mm2_table, self._tax_table):
             table.clearContents()
             table.setRowCount(0)
         self._key_table.clear()
@@ -283,13 +277,10 @@ class DatabaseManagerDialog(QDialog):
         from emtrace.utils.db_download import database_status, taxonomy_status
 
         ann_rows, host_rows = database_status(self._config)
-        mm2_rows = [r for r in host_rows if r.get("search", "minimap2").lower() != "bwa"]
-        bwa_rows = [r for r in host_rows if r.get("search", "").lower() == "bwa"]
         tax_rows = taxonomy_status(self._config)
 
         self._fill_table(self._ann_table, ann_rows)
-        self._fill_table(self._mm2_table, mm2_rows)
-        self._fill_table(self._bwa_table, bwa_rows)
+        self._fill_table(self._mm2_table, host_rows)
         self._fill_table(self._tax_table, tax_rows)
 
     def _fill_table(self, table: QTableWidget, rows: List[dict]) -> None:
@@ -394,19 +385,16 @@ class DatabaseManagerDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _get_rows_for_tab(self, tab: str) -> List[dict]:
-        """Return status rows for *tab* ('ann', 'mm2', 'bwa', or 'tax')."""
+        """Return status rows for *tab* ('ann', 'mm2', or 'tax')."""
         from emtrace.utils.db_download import database_status, taxonomy_status
         ann_rows, host_rows = database_status(self._config)
-        mm2_rows = [r for r in host_rows if r.get("search", "minimap2").lower() != "bwa"]
-        bwa_rows = [r for r in host_rows if r.get("search", "").lower() == "bwa"]
         tax_rows = taxonomy_status(self._config)
-        return {"ann": ann_rows, "mm2": mm2_rows, "bwa": bwa_rows, "tax": tax_rows}.get(tab, [])
+        return {"ann": ann_rows, "mm2": host_rows, "tax": tax_rows}.get(tab, [])
 
     def _tab_label(self, tab: str) -> str:
         return {
             "ann": "annotation",
-            "mm2": "minimap2 host genome",
-            "bwa": "bwa host genome",
+            "mm2": "host genome",
             "tax": "taxonomy",
         }.get(tab, tab)
 
@@ -414,7 +402,6 @@ class DatabaseManagerDialog(QDialog):
         return {
             "ann": (self._progress_ann, self._status_label_ann),
             "mm2": (self._progress_mm2, self._status_label_mm2),
-            "bwa": (self._progress_bwa, self._status_label_bwa),
             "tax": (self._progress_tax, self._status_label_tax),
         }[tab]
 
@@ -434,17 +421,11 @@ class DatabaseManagerDialog(QDialog):
     def _on_install_all_missing_mm2(self) -> None:
         self._install_all_missing_for_tab("mm2")
 
-    def _on_install_all_missing_bwa(self) -> None:
-        self._install_all_missing_for_tab("bwa")
-
     def _on_update_all_ann(self) -> None:
         self._update_all_for_tab("ann")
 
     def _on_update_all_mm2(self) -> None:
         self._update_all_for_tab("mm2")
-
-    def _on_update_all_bwa(self) -> None:
-        self._update_all_for_tab("bwa")
 
     def _update_all_for_tab(self, tab: str) -> None:
         if self._worker and self._worker.isRunning():
@@ -542,8 +523,6 @@ class DatabaseManagerDialog(QDialog):
             progress, status_label = self._progress_ann, self._status_label_ann
         elif table is self._mm2_table:
             progress, status_label = self._progress_mm2, self._status_label_mm2
-        elif table is self._bwa_table:
-            progress, status_label = self._progress_bwa, self._status_label_bwa
         else:
             progress, status_label = self._progress_tax, self._status_label_tax
 
@@ -649,7 +628,6 @@ class DatabaseManagerDialog(QDialog):
         for btn in (
             self._install_all_ann_btn, self._update_all_ann_btn,
             self._install_all_mm2_btn, self._update_all_mm2_btn,
-            self._install_all_bwa_btn, self._update_all_bwa_btn,
             self._install_all_tax_btn, self._update_all_tax_btn,
         ):
             btn.setEnabled(enabled)
