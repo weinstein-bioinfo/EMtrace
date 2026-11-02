@@ -22,7 +22,7 @@ from typing import Optional
 import click
 
 from emtrace import __version__
-from emtrace.core.config import EMtraceConfig
+from emtrace.core.config import PROFILE_ALIASES, EMtraceConfig, available_profiles
 from emtrace.core.exceptions import ConfigurationError
 from emtrace.core.pipeline import Pipeline
 from emtrace.core.pipelinejob import PipelineJob
@@ -67,6 +67,10 @@ def cli():
 # ------------------------------------------------------------------
 # run
 # ------------------------------------------------------------------
+
+# --profile values: the profiles plus their aliases (virome = default)
+_PROFILE_CHOICE = click.Choice([*available_profiles(), *PROFILE_ALIASES], case_sensitive=False)
+
 
 def _load_config(config_file, profile):
     """Build a config from --config (exact) or --profile (overlay), else defaults.
@@ -303,11 +307,13 @@ def _load_config(config_file, profile):
     help="Config YAML file (default: bundled default.yaml).",
 )
 @click.option(
-    "--profile", default=None,
+    "--profile", default=None, type=_PROFILE_CHOICE,
     help=(
-        "Bundled settings profile overlaid on the defaults, e.g. '16S'. "
-        "Unlike --config, which replaces the defaults outright, a profile "
-        "only changes the keys it names. Mutually exclusive with --config."
+        "Settings profile: 'default' (alias 'virome', the bundled defaults) "
+        "or a bundled overlay such as '16S'. Unlike --config, which replaces "
+        "the defaults outright, an overlay only changes the keys it names. "
+        "The GUI's Profile switch applies the same settings. Mutually "
+        "exclusive with --config."
     ),
 )
 @click.option(
@@ -861,11 +867,13 @@ def _do_remove(cfg: EMtraceConfig, key: str) -> None:
     help="Config YAML file.",
 )
 @click.option(
-    "--profile", default=None,
+    "--profile", default=None, type=_PROFILE_CHOICE,
     help=(
-        "Bundled settings profile overlaid on the defaults, e.g. '16S'. "
-        "Unlike --config, which replaces the defaults outright, a profile "
-        "only changes the keys it names. Mutually exclusive with --config."
+        "Settings profile: 'default' (alias 'virome', the bundled defaults) "
+        "or a bundled overlay such as '16S'. Unlike --config, which replaces "
+        "the defaults outright, an overlay only changes the keys it names. "
+        "The GUI's Profile switch applies the same settings. Mutually "
+        "exclusive with --config."
     ),
 )
 @click.option(
@@ -960,7 +968,7 @@ def watch(
             click.echo("Top taxa:")
             for taxid, prob in snap["top_taxa"][:10]:
                 click.echo(
-                    f"  {taxid:<12} {prob:.6f}"
+                    f"  {taxid:<12} {prob:.6f}  {snap['taxa_names'].get(taxid, '')}"
                 )
 
     # Run

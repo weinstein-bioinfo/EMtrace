@@ -50,6 +50,15 @@ def test_mapping_replaces_a_scalar():
 # The 16S profile
 # ------------------------------------------------------------------ #
 
+@pytest.fixture(scope="module", autouse=True)
+def _db_dir_env(tmp_path_factory):
+    # A user config's db_dir sets EMTRACE_DB_DIR on the first config load only,
+    # so configs built before and after it expand database paths differently.
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setenv("EMTRACE_DB_DIR", str(tmp_path_factory.mktemp("db")))
+        yield
+
+
 @pytest.fixture(scope="module")
 def s16():
     return EMtraceConfig.from_profile("16S")
@@ -185,50 +194,147 @@ def test_tail_flags_are_offered_on_run():
 
 
 # ------------------------------------------------------------------ #
-# Analysis mode (virome / 16S), as the GUI switches it
+# Profile switch (default / 16S), as the GUI's Profile combo applies it
 # ------------------------------------------------------------------ #
 
-def test_mode_follows_annotation(default, s16):
-    assert default.mode == "virome"
-    assert s16.mode == "16S"
+def test_constructors_record_the_profile(default, s16):
+    assert default.profile == "default"
+    assert s16.profile == "16S"
+
+
+@pytest.mark.parametrize("name", ["virome", "VIROME", "default"])
+def test_virome_is_an_alias_of_default(name, default):
+    cfg = EMtraceConfig.from_profile(name)
+    assert cfg.profile == "default"
+    assert cfg.model_dump() == default.model_dump()
+
+
+def test_profile_name_is_case_insensitive(s16):
+    assert EMtraceConfig.from_profile("16s").model_dump() == s16.model_dump()
+
+
+def test_profile_survives_a_yaml_round_trip(s16, tmp_path):
+    path = tmp_path / "c.yaml"
+    s16.to_yaml(path)
+    assert EMtraceConfig.from_yaml(path).profile == "16S"
+
+
+def test_config_file_profile_alias_is_canonicalised(tmp_path):
+    path = tmp_path / "c.yaml"
+    path.write_text("profile: virome\n")
+    assert EMtraceConfig.from_yaml(path).profile == "default"
+
+
+def test_config_file_with_unknown_profile_is_rejected(tmp_path):
+    path = tmp_path / "c.yaml"
+    path.write_text("profile: nope\n")
+    with pytest.raises(Exception, match="Unknown profile 'nope'"):
+        EMtraceConfig.from_yaml(path)
+
+
+def test_active_profile_falls_back_to_the_annotation(default):
+    # Configs written before the profile key: inferred from the preset/databases
     custom = default.model_copy(deep=True)
+    custom.profile = None
+    assert custom.active_profile == "default"
+    custom.annotation.anns = "16S.emu"
+    assert custom.active_profile == "16S"
     custom.annotation.anns = None
     custom.annotation.ann1 = "minimap.rrnDB.dedup"
-    assert custom.mode == "16S"
+    assert custom.active_profile == "16S"
 
 
-def test_with_mode_16S_matches_profile(default, s16):
-    new, changes = default.with_mode("16S")
+def test_recorded_profile_wins_over_the_annotation(default):
+    cfg = default.model_copy(deep=True)
+    cfg.annotation.anns = "16S.emu"
+    assert cfg.active_profile == "default"
+
+
+def test_with_profile_16S_matches_profile(default, s16):
+    new, changes = default.with_profile("16S")
     assert new.model_dump() == s16.model_dump()
     assert ("annotation.minimap.max_target_seqs", 5, 25) in changes
 
 
-def test_with_mode_round_trip_restores_defaults(default):
-    there, _ = default.with_mode("16S")
-    back, changes = there.with_mode("virome")
+def test_with_profile_round_trip_restores_defaults(default):
+    there, _ = default.with_profile("16S")
+    back, changes = there.with_profile("virome")
     assert back.model_dump() == default.model_dump()
     assert changes
 
 
-def test_with_mode_keeps_settings_outside_the_profile(default):
+def test_with_profile_keeps_settings_outside_the_profile(default):
     cfg = default.model_copy(deep=True)
     cfg.runtime.num_threads = 3
     cfg.assembly.min_coverage = 20
-    new, _ = cfg.with_mode("16S")
+    new, _ = cfg.with_profile("16S")
     assert new.runtime.num_threads == 3
     assert new.assembly.min_coverage == 20
 
 
-def test_with_mode_keeps_a_preset_of_the_target_mode(default):
-    # The preset-triggered switch: the user picked 16S.emu, then the mode follows.
+def test_with_profile_keeps_a_preset_of_the_target_profile(default):
+    # The preset-triggered switch: the user picked 16S.emu, then the profile follows.
     cfg = default.model_copy(deep=True)
     cfg.annotation.anns = "16S.emu"
-    new, changes = cfg.with_mode("16S")
+    new, changes = cfg.with_profile("16S")
     assert new.annotation.anns == "16S.emu"
     assert "annotation.anns" not in [key for key, _, _ in changes]
     assert new.annotation.minimap.max_target_seqs == 25
+    assert new.profile == "16S"
 
 
-def test_with_mode_rejects_unknown(default):
-    with pytest.raises(ValueError):
-        default.with_mode("metagenome")
+def test_with_profile_rejects_unknown(default):
+    with pytest.raises(ConfigurationError):
+        default.with_profile("metagenome")
+
+
+# ------------------------------------------------------------------ #
+# Deviations from the profile (run log, GUI note)
+# ------------------------------------------------------------------ #
+
+def test_profile_configs_have_no_deviations(default, s16):
+    assert default.profile_deviations() == []
+    assert s16.profile_deviations() == []
+
+
+def test_deviations_list_changed_profile_settings_only(s16):
+    cfg = s16.model_copy(deep=True)
+    cfg.preprocess.chopper.minlength = 400
+    cfg.runtime.num_threads = 3            # not a profile setting
+    assert cfg.profile_deviations() == [("preprocess.chopper.minlength", 400, 1200)]
+
+
+# ------------------------------------------------------------------ #
+# CLI --profile choices and job.yaml
+# ------------------------------------------------------------------ #
+
+@pytest.mark.parametrize("name, expected", [
+    ("default", "default"), ("virome", "default"), ("16S", "16S"), ("16s", "16S"),
+])
+def test_load_config_accepts_profile_names_and_alias(name, expected):
+    from emtrace.__main__ import _load_config
+
+    assert _load_config(None, name).profile == expected
+
+
+def test_cli_rejects_an_unknown_profile(tmp_path):
+    reads = tmp_path / "x.fq"
+    reads.write_text("@r\nACGT\n+\nIIII\n")
+    result = CliRunner().invoke(
+        cli, ["run", "--profile", "metagenome", "-1", str(reads), "-s", "smoke"],
+    )
+    assert result.exit_code != 0
+    assert "metagenome" in result.output
+
+
+def test_setup_job_records_the_profile_in_job_yaml(s16, tmp_path):
+    import yaml
+
+    from emtrace.core.pipeline import Pipeline
+    from emtrace.core.pipelinejob import PipelineJob
+
+    job = PipelineJob(name="j", output_dir=tmp_path / "j")
+    job.init_dirs()
+    Pipeline(s16).setup_job(job)
+    assert job.profile == "16S"
+    assert yaml.safe_load(job.manifest_path.read_text())["profile"] == "16S"

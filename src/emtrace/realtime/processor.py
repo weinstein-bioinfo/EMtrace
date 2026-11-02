@@ -18,6 +18,7 @@ Option B strategy (from ROADMAP):
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 import threading
 from dataclasses import dataclass, field
@@ -42,6 +43,18 @@ logger = logging.getLogger("emtrace.realtime.processor")
 # Accumulated state
 # ------------------------------------------------------------------
 
+# Taxa listed in a snapshot (and named, see BatchProcessor._name_top_taxa)
+TOP_TAXA_N = 20
+
+
+def _taxon_name(values: Sequence[object]) -> str:
+    """First real name among lineage values (species, organism, genus); "" if none."""
+    for v in values:
+        if isinstance(v, str) and v.strip() and v.strip() not in ("NA", "nan", "None"):
+            return v.strip()
+    return ""
+
+
 @dataclass
 class RealtimeState:
     """Thread-safe accumulated state across batches."""
@@ -58,6 +71,8 @@ class RealtimeState:
     total_reads: int = 0
     # Total files processed
     total_files: int = 0
+    # taxid → display name ("" = looked up, none found), for the top-taxa list
+    taxa_names: Dict[str, str] = field(default_factory=dict)
     # Lock for thread-safe updates
     _lock: threading.Lock = field( default_factory=threading.Lock )
 
@@ -88,7 +103,7 @@ class RealtimeState:
     def get_snapshot(self) -> dict:
         """Return a summary dict (thread-safe)."""
         with self._lock:
-            top_taxa = sorted( self.F.items(), key=lambda x: x[1], reverse=True)[:20]
+            top_taxa = sorted( self.F.items(), key=lambda x: x[1], reverse=True)[:TOP_TAXA_N]
             return {
                 "batch_count": self.batch_count,
                 "total_reads": self.total_reads,
@@ -97,6 +112,8 @@ class RealtimeState:
                 "n_taxa": len(self.F),
                 "log_L": (self.em_result.log_L if self.em_result else None),
                 "top_taxa": top_taxa,
+                # taxid → name for top_taxa; "" when unknown (show the taxid)
+                "taxa_names": {t: self.taxa_names.get(t, "") for t, _ in top_taxa},
             }
 
 
@@ -305,6 +322,7 @@ class BatchProcessor:
             output_dir=self.output_dir,
             results_dir="results",
             num_threads=self.config.runtime.num_threads,
+            profile=self.config.active_profile,
         )
         job.init_dirs()
 
@@ -516,6 +534,57 @@ class BatchProcessor:
                 )
         if self.config.output.realtime_abund_table:
             self._write_abundance_tsv()
+        self._name_top_taxa()
+
+    def _remember_names(self, abund_df: pd.DataFrame) -> None:
+        """Cache taxid → name from a lineage-linked abundance table.
+
+        Taken before the tail trim and other filters, so taxa that drop out
+        of abund_table.tsv keep their names in the live top-taxa list.
+        """
+        cols = [c for c in ("species", "organism", "genus") if c in abund_df.columns]
+        if "taxid" not in abund_df.columns or not cols:
+            return
+        names = {
+            str(row[0]): name
+            for row in abund_df[["taxid", *cols]].itertuples(index=False)
+            if (name := _taxon_name(row[1:]))
+        }
+        with self.state._lock:
+            self.state.taxa_names.update(names)
+
+    def _name_top_taxa(self) -> None:
+        """Look up names of top taxa the abundance table did not provide.
+
+        Covers ``output.realtime_abund_table: false`` and failed linkage. NCBI
+        taxonomy only (SILVA taxids are named by the table's SILVA linkage);
+        best-effort, and taxids without a name are cached as "" so each is
+        looked up once.
+        """
+        with self.state._lock:
+            top = sorted(self.state.F.items(), key=lambda x: x[1], reverse=True)[:TOP_TAXA_N]
+            missing = [t for t, _ in top if t not in self.state.taxa_names]
+            annot = self.state.annotations
+        if not missing:
+            return
+        try:
+            from emtrace.analysis.taxonomy_utils import is_silva_annotation
+            from emtrace.core.config import TaxonomyType
+            from emtrace.models.taxonomy import NCBITaxonomy
+
+            if is_silva_annotation(annot, self.config):
+                return
+            db = Path(os.path.expandvars(self.config.taxonomy.source(TaxonomyType.NCBI).db))
+            if not db.exists():
+                return                      # no taxonomy installed: keep taxids, retry later
+            tax = NCBITaxonomy(db)
+            names = {t: (tax.get_organism(int(t)) if t.isdigit() else "") for t in missing}
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Top-taxa name lookup skipped: %s", exc)
+            return
+        with self.state._lock:
+            for t, name in names.items():
+                self.state.taxa_names.setdefault(t, name or "")
 
     def _write_abundance_tsv(self) -> None:
         """Build and write abund_table.tsv from accumulated annotations + EM probs.
@@ -570,6 +639,7 @@ class BatchProcessor:
                 add_division_field(abund_df, tax_db, taxid_col="taxid")
         except Exception as exc:
             logger.warning("Taxonomy linkage skipped: %s", exc)
+        self._remember_names(abund_df)
 
         # Same opt-in filter the batch report step applies, so `watch`
         # output matches `run` output.

@@ -268,6 +268,19 @@ class Pipeline:
         bgfilter : str
             Comma-separated bgfilter keys or FASTA paths.
         """
+        # Record the settings profile (job.yaml) and say where the config departs from it
+        sample.profile = self.config.active_profile
+        deviations = self.config.profile_deviations()
+        if deviations:
+            logger.info(
+                "Settings profile: %s, changed: %s", sample.profile,
+                ", ".join(f"{k} {v} (profile {p})" for k, v, p in deviations),
+            )
+        else:
+            logger.info("Settings profile: %s", sample.profile)
+        if sample.manifest_path.exists():
+            sample._write_job_manifest()
+
         # Resolve annotation strategy → ann1/ann2.
         # Precedence: CLI --anns > CLI --ann1/--ann2 > config anns > config ann1/ann2.
         if not anns and not ann1:

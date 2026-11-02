@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
+    QListWidgetItem,
     QMessageBox,
     QPushButton,
     QSpinBox,
@@ -185,10 +186,13 @@ class RealtimePanelWidget(QWidget):
         self._taxa_count_label.setText(str(snapshot.get("n_taxa", "—")))
 
         top = snapshot.get("top_taxa", [])
+        names = snapshot.get("taxa_names", {})
         self._taxa_list.clear()
         for taxid, prob in top[:10]:
             pct = prob * 100
-            self._taxa_list.addItem(f"{taxid}   {pct:.1f} %")
+            item = QListWidgetItem(f"{names.get(taxid) or taxid}   {pct:.1f} %")
+            item.setToolTip(f"taxid {taxid}")
+            self._taxa_list.addItem(item)
 
     def on_watch_status_changed(self, status: str) -> None:
         """Update the status indicator and toggle control availability."""

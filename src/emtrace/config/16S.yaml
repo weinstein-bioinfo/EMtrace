@@ -2,6 +2,7 @@
 #
 #   emtrace run --profile 16S ...
 #   emtrace watch --profile 16S ...
+#   GUI: Config page, Profile: 16S
 #
 # Overlaid on default.yaml (EMtraceConfig.from_profile): only the keys that
 # differ are listed, so databases and taxonomy are inherited.

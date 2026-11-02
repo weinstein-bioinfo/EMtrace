@@ -5,6 +5,12 @@ the ``watchdog`` library.  Debounces file detection (MinKNOW writes
 incrementally) and pushes stable files into a thread-safe queue for
 the batch processor.
 
+Files count whether they are written, copied or moved/renamed into the
+directory (Finder drag, ``mv``, rsync's temp-then-rename). A periodic
+rescan catches files whose events were missed (network shares, coalesced
+FSEvents). A file already processed is recognised after a rename by its
+identity (device, inode, size, mtime) and not processed twice.
+
 Usage::
 
     from emtrace.realtime.watcher import FastqWatcher
@@ -60,7 +66,11 @@ class FastqWatcher:
         watchdog is not available or for the debounce loop).
     scan_existing : bool
         If True, enqueue FASTQ files already present in the
-        directory at startup.
+        directory at startup. If False they are ignored, also by
+        the rescan and the polling fallback.
+    rescan_interval : float
+        With watchdog, also rescan the directory every this many
+        seconds for files whose events were missed; 0 = off.
     """
 
     def __init__(
@@ -71,15 +81,24 @@ class FastqWatcher:
         recursive: bool = True,
         poll_interval: float = 1.0,
         scan_existing: bool = False,
+        rescan_interval: float = 30.0,
     ) -> None:
         self.watch_dir = Path(watch_dir)
         self.debounce_seconds = debounce_seconds
         self.recursive = recursive
         self.poll_interval = poll_interval
         self.scan_existing = scan_existing
+        self.rescan_interval = rescan_interval
 
         self._queue: Queue[Path] = Queue()
         self._seen: Set[Path] = set()
+        # Identities of processed files: a renamed file keeps its identity
+        self._seen_ids: Set[tuple] = set()
+        # Files present at start with scan_existing=False: skipped by scans
+        self._preexisting: Set[Path] = set()
+        self._watchdog_active = False
+        # Size at the last scan, so scans restart the debounce only on growth
+        self._scanned_size: dict[Path, int] = {}
         self._stop_event = threading.Event()
         self._observer = None
         self._debounce_thread: Optional[threading.Thread] = None
@@ -108,9 +127,11 @@ class FastqWatcher:
             self.recursive,
         )
 
-        # Scan existing files if requested
+        # Scan existing files if requested; otherwise keep scans off them
         if self.scan_existing:
             self._scan_existing()
+        else:
+            self._preexisting = set(self._list_fastq())
 
         # Start watchdog observer
         self._start_observer()
@@ -219,6 +240,13 @@ class FastqWatcher:
                         Path(cast(str,event.src_path)),
                     )
 
+            def on_moved(self, event):
+                if not event.is_directory:
+                    watcher._on_file_moved(
+                        Path(cast(str,event.src_path)),
+                        Path(cast(str,event.dest_path)),
+                    )
+
         self._observer = Observer()
         self._observer.schedule(
             _Handler(),
@@ -227,6 +255,7 @@ class FastqWatcher:
         )
         self._observer.daemon = True
         self._observer.start()
+        self._watchdog_active = True
 
     def _start_poller(self) -> None:
         """Fallback: poll directory for new files."""
@@ -243,11 +272,26 @@ class FastqWatcher:
             self._scan_dir()
             self._stop_event.wait(self.poll_interval)
 
-    def _scan_dir(self) -> None:
-        """Scan directory for new FASTQ files."""
+    def _list_fastq(self) -> list[Path]:
+        """FASTQ files now in the watched directory (resolved paths)."""
         pattern = "**/*" if self.recursive else "*"
-        for p in self.watch_dir.glob(pattern):
-            if p.is_file() and _is_fastq(p):
+        return [
+            p.resolve() for p in self.watch_dir.glob(pattern)
+            if p.is_file() and _is_fastq(p)
+        ]
+
+    def _scan_dir(self) -> None:
+        """Scan directory for new FASTQ files (poller, rescan)."""
+        for p in self._list_fastq():
+            if p in self._preexisting or p in self._seen:
+                continue
+            try:
+                size = p.stat().st_size
+            except OSError:
+                continue
+            # Restart the debounce only when the file grew since the last scan
+            if self._scanned_size.get(p) != size:
+                self._scanned_size[p] = size
                 self._on_file_event(p)
 
     def _scan_existing(self) -> None:
@@ -277,11 +321,39 @@ class FastqWatcher:
         with self._pending_lock:
             self._pending[path] = time.monotonic()
 
+    def _on_file_moved(self, src: Path, dest: Path) -> None:
+        """A file was moved or renamed: track it under its new path."""
+        with self._pending_lock:
+            self._pending.pop(src.resolve(), None)
+        if self._in_scope(dest):
+            self._on_file_event(dest)
+
+    def _in_scope(self, path: Path) -> bool:
+        """True if *path* lies in the watched directory (or below, if recursive)."""
+        path, root = path.resolve(), self.watch_dir.resolve()
+        return path.is_relative_to(root) if self.recursive else path.parent == root
+
+    @staticmethod
+    def _file_id(path: Path) -> Optional[tuple]:
+        """Identity that survives a rename: (device, inode, size, mtime)."""
+        try:
+            st = path.stat()
+        except OSError:
+            return None
+        return (st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns)
+
     def _debounce_loop(self) -> None:
         """Promote pending files to queue once stable."""
+        last_rescan = time.monotonic()
         while not self._stop_event.is_set():
             now = time.monotonic()
             ready = []
+
+            # Safety net for missed events (watchdog mode; the poller scans anyway)
+            if (self._watchdog_active and self.rescan_interval > 0
+                    and now - last_rescan >= self.rescan_interval):
+                last_rescan = now
+                self._scan_dir()
 
             with self._pending_lock:
                 for path, last_mod in list(
@@ -296,12 +368,22 @@ class FastqWatcher:
                             del self._pending[path]
 
             for path in ready:
-                if path not in self._seen:
-                    self._seen.add(path)
-                    self._queue.put(path)
+                if path in self._seen:
+                    continue
+                self._seen.add(path)
+                fid = self._file_id(path)
+                if fid is not None and fid in self._seen_ids:
                     logger.info(
-                        "New FASTQ: %s", path.name,
+                        "Skipping %s: renamed copy of a file "
+                        "already processed", path.name,
                     )
+                    continue
+                if fid is not None:
+                    self._seen_ids.add(fid)
+                self._queue.put(path)
+                logger.info(
+                    "New FASTQ: %s", path.name,
+                )
 
             self._stop_event.wait(
                 min(self.poll_interval, 0.5),

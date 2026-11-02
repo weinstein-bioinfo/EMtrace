@@ -65,6 +65,7 @@ from emtrace.core.config import (
     OutputConfig,
     PorechopABIConfig,
     PreprocessConfig,
+    RefAutoConfig,
     ReportConfig,
     RuntimeConfig,
     SubsampleConfig,
@@ -904,7 +905,7 @@ class ConfigEditorWidget(QScrollArea):
         self._strategy_bar: Optional[_AnnotationStrategyBar] = None
         self._annot_dir: Optional[Path] = None
         self._viral_hits_combo: Optional[_ViralHitsCombo] = None
-        self._mode_combo: Optional[QComboBox] = None
+        self._profile_combo: Optional[QComboBox] = None
 
         # Outer container
         self._container = QWidget()
@@ -932,8 +933,8 @@ class ConfigEditorWidget(QScrollArea):
 
         ann = config.annotation
 
-        # --- Analysis mode: virome / 16S ---
-        self._vbox.addWidget(self._build_mode_row(config))
+        # --- Settings profile: default / 16S (CLI --profile) ---
+        self._vbox.addWidget(self._build_profile_row(config))
 
         # --- Section: Runtime ---
         self._vbox.addWidget(self._build_section("runtime", "Runtime", config.runtime))
@@ -1029,60 +1030,80 @@ class ConfigEditorWidget(QScrollArea):
     # Analysis mode (virome / 16S)
     # ==================================================================
 
-    def _build_mode_row(self, config: EMtraceConfig) -> QWidget:
-        """Mode selector at the top of the form: virome or 16S settings."""
+    def _build_profile_row(self, config: EMtraceConfig) -> QWidget:
+        """Profile selector at the top of the form: default or 16S settings."""
         row = QWidget()
         form = QFormLayout(row)
         form.setContentsMargins(0, 0, 0, 6)
-        self._mode_combo = QComboBox()
-        for label, mode in _MODE_LABELS.items():
-            self._mode_combo.addItem(label, mode)
-        self._mode_combo.setToolTip(
-            "Virome: default settings for viral metagenomics.\n"
-            "16S rRNA: the benchmarked 16S profile (full-length amplicons;\n"
+        self._profile_combo = QComboBox()
+        for label, profile in _PROFILE_LABELS.items():
+            self._profile_combo.addItem(label, profile)
+        self._profile_combo.setToolTip(
+            "Settings profile, as the CLI's --profile.\n"
+            "default (virome): default settings for viral metagenomics.\n"
+            "16S: the benchmarked 16S profile (full-length amplicons;\n"
             "-N 25, EM temperature 10, no host filter, 1200-1800 bp reads,\n"
             "1 % tail trim). Switching changes only these settings."
         )
-        self._mode_combo.setCurrentIndex(self._mode_combo.findData(config.mode))
-        self._mode_combo.currentIndexChanged.connect(self._on_mode_selected)
-        form.addRow("Analysis mode:", self._mode_combo)
+        self._profile_combo.setCurrentIndex(
+            self._profile_combo.findData(config.active_profile)
+        )
+        self._profile_combo.currentIndexChanged.connect(self._on_profile_selected)
+        # Width follows the longest label instead of filling the page
+        self._profile_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        self._profile_combo.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        profile_row = QHBoxLayout()
+        profile_row.setContentsMargins(0, 0, 0, 0)
+        profile_row.addWidget(self._profile_combo)
+        # Settings changed away from the profile (same list the run log prints)
+        deviations = config.profile_deviations()
+        if deviations:
+            note = QLabel(f"modified: {len(deviations)} setting(s) differ from the profile")
+            note.setStyleSheet("color: #b45309; font-size: 11px;")
+            note.setToolTip("\n".join(
+                f"{_PROFILE_KEY_LABELS.get(key, key)}: {_fmt_profile_value(value, key)}"
+                f" (profile {_fmt_profile_value(expected, key)})"
+                for key, value, expected in deviations
+            ))
+            profile_row.addWidget(note)
+        profile_row.addStretch(1)
+        form.addRow("Profile:", profile_row)
         return row
 
-    def _on_mode_selected(self, _index: int) -> None:
-        mode = self._mode_combo.currentData()
+    def _on_profile_selected(self, _index: int) -> None:
+        profile = self._profile_combo.currentData()
         # Deferred: the switch rebuilds the form, including this combo.
-        QTimer.singleShot(0, lambda: self._switch_mode(mode, "mode switch"))
+        QTimer.singleShot(0, lambda: self._switch_profile(profile, "profile switch"))
 
     def _on_preset_selected(self, name: Optional[str]) -> None:
-        """A 16S.* preset switches to 16S mode, any other preset back to virome."""
-        if name is None or self._mode_combo is None:
+        """A 16S.* preset switches to the 16S profile, any other preset to default."""
+        if name is None or self._profile_combo is None:
             return
-        mode = "16S" if name.startswith("16S.") else "virome"
-        if mode != self._mode_combo.currentData():
-            QTimer.singleShot(0, lambda: self._switch_mode(mode, f"preset {name}"))
+        profile = "16S" if name.startswith("16S.") else "default"
+        if profile != self._profile_combo.currentData():
+            QTimer.singleShot(0, lambda: self._switch_profile(profile, f"preset {name}"))
 
-    def _switch_mode(self, mode: str, trigger: str) -> None:
-        """Apply *mode* to the current form values and reload the form."""
+    def _switch_profile(self, profile: str, trigger: str) -> None:
+        """Apply *profile* to the current form values and reload the form."""
         if self._config is None:
             return
         try:
-            new_cfg, changes = self._build_config().with_mode(mode)
+            new_cfg, changes = self._build_config().with_profile(profile)
         except Exception as exc:  # noqa: BLE001
-            logger.error("Mode switch failed: %s", exc)
-            self.status_message.emit(f"Could not switch to {mode} mode: {exc}")
+            logger.error("Profile switch failed: %s", exc)
+            self.status_message.emit(f"Could not switch to the {profile} profile: {exc}")
             return
         self.load_config(new_cfg)
         self.config_changed.emit(new_cfg)
-        label = next(k for k, v in _MODE_LABELS.items() if v == mode)
         if changes:
             details = ", ".join(
-                f"{_MODE_KEY_LABELS.get(key, key)} {_fmt_mode_value(old, key)}→{_fmt_mode_value(new, key)}"
+                f"{_PROFILE_KEY_LABELS.get(key, key)} {_fmt_profile_value(old, key)}→{_fmt_profile_value(new, key)}"
                 for key, old, new in changes
             )
-            msg = f"{label} mode ({trigger}): {details}"
+            msg = f"{profile} profile ({trigger}): {details}"
         else:
-            msg = f"{label} mode ({trigger}): settings already match"
-        self._status_label.setText(f"{label} mode applied.")
+            msg = f"{profile} profile ({trigger}): settings already match"
+        self._status_label.setText(f"{profile} profile applied.")
         self._status_label.setStyleSheet("color: #16a34a; font-size: 11px;")
         self.status_message.emit(msg)
 
@@ -1216,6 +1237,9 @@ class ConfigEditorWidget(QScrollArea):
             w = self._field_widgets.get(f"assembly.minimap.{field_name}")
             if w is not None:
                 asm_data["minimap"][field_name] = self._read_widget_value(w)
+        ref_auto_w = self._field_widgets.get("assembly.ref_auto.enabled")
+        if ref_auto_w is not None:
+            asm_data["ref_auto"]["enabled"] = self._read_widget_value(ref_auto_w)
         assembly = AssemblyConfig(**asm_data)
 
         # EM
@@ -1255,6 +1279,10 @@ class ConfigEditorWidget(QScrollArea):
             em=em,
             report=report,
             db_dir=cfg.db_dir,
+            profile=(
+                self._profile_combo.currentData()
+                if self._profile_combo is not None else cfg.profile
+            ),
         )
 
     # ==================================================================
@@ -1526,6 +1554,19 @@ class ConfigEditorWidget(QScrollArea):
         )
         self._field_widgets["assembly.database"] = db_combo
         form.addRow("Assembly reference DB:", db_combo)
+
+        # Automatic reference selection (used only when no references are given)
+        ref_auto_w = self._create_widget(
+            RefAutoConfig.model_fields["enabled"], "enabled",
+            "assembly.ref_auto.enabled", asm.ref_auto.enabled,
+        )
+        ref_auto_w.setToolTip(
+            "Pick the reference genomes automatically from the assembly reference DB\n"
+            "and the annotation hits. Used only when no reference FASTA file or\n"
+            "accessions are given; explicit references always win."
+        )
+        self._field_widgets["assembly.ref_auto.enabled"] = ref_auto_w
+        form.addRow("Auto-select references:", ref_auto_w)
 
         sep0 = QFrame()
         sep0.setFrameShape(QFrame.Shape.HLine)
@@ -2014,7 +2055,7 @@ class ConfigEditorWidget(QScrollArea):
         self._host_picker = None
         self._host_picker_mm2 = None
         self._strategy_bar = None
-        self._mode_combo = None
+        self._profile_combo = None
         while self._vbox.count():
             item = self._vbox.takeAt(0)
             w = item.widget()
@@ -2028,10 +2069,11 @@ class ConfigEditorWidget(QScrollArea):
 # Module-level helpers
 # ===========================================================================
 
-_MODE_LABELS = {"Virome": "virome", "16S rRNA": "16S"}
+# Combo label → profile name (CLI --profile)
+_PROFILE_LABELS = {"default (virome)": "default", "16S": "16S"}
 
-# Short names for the settings an analysis-mode switch changes.
-_MODE_KEY_LABELS = {
+# Short names for the settings a profile switch changes.
+_PROFILE_KEY_LABELS = {
     "report.tail": "tail trim",
     "annotation.anns": "preset",
     "annotation.minimap.max_target_seqs": "minimap2 -N",
@@ -2046,7 +2088,7 @@ _MODE_KEY_LABELS = {
 }
 
 
-def _fmt_mode_value(value: Any, key: str = "") -> str:
+def _fmt_profile_value(value: Any, key: str = "") -> str:
     if isinstance(value, bool):
         if key.endswith(".no_split"):
             value = not value      # shown as "read splitting"

@@ -92,3 +92,61 @@ class TestBatchProcessorInit:
         assert len(df) == 2
         assert df.iloc[0]["taxid"] == "A"
         assert df.iloc[0]["prob"] == 0.6
+
+
+class TestTopTaxaNames:
+    """Names for the live top-taxa list (GUI Realtime panel, `watch` console)."""
+
+    @pytest.fixture
+    def proc(self, tmp_dir: Path) -> BatchProcessor:
+        return BatchProcessor(config=EMtraceConfig(), output_dir=tmp_dir / "rt", job_name="t")
+
+    def test_snapshot_names_top_taxa(self):
+        state = RealtimeState()
+        state.F = {"11084": 0.9, "999": 0.1}
+        state.taxa_names = {"11084": "Orthoflavivirus encephalitidis"}
+        snap = state.get_snapshot()
+        assert snap["top_taxa"] == [("11084", 0.9), ("999", 0.1)]
+        assert snap["taxa_names"] == {"11084": "Orthoflavivirus encephalitidis", "999": ""}
+
+    def test_names_come_from_the_abundance_table(self, proc):
+        import pandas as pd
+        abund = pd.DataFrame({
+            "taxid": [11084, 1280, 42],
+            "species": ["Orthoflavivirus encephalitidis", "NA", None],
+            "organism": ["Tick-borne encephalitis virus", "Staphylococcus aureus", ""],
+            "genus": ["Orthoflavivirus", "Staphylococcus", "Bacillus"],
+        })
+        proc._remember_names(abund)
+        assert proc.state.taxa_names == {
+            "11084": "Orthoflavivirus encephalitidis",   # species first
+            "1280": "Staphylococcus aureus",             # organism when species is NA
+            "42": "Bacillus",                            # then genus
+        }
+
+    def test_missing_names_are_looked_up_once(self, proc, monkeypatch):
+        calls = []
+
+        class FakeNCBI:
+            def __init__(self, db_path):
+                pass
+
+            def get_organism(self, taxid):
+                calls.append(taxid)
+                return {11084: "Tick-borne encephalitis virus"}.get(taxid, "")
+
+        monkeypatch.setattr("emtrace.models.taxonomy.NCBITaxonomy", FakeNCBI)
+        db = proc.output_dir / "taxonomy.db"
+        db.touch()
+        proc.config.taxonomy.NCBI.db = str(db)
+        proc.state.F = {"11084": 0.9, "7": 0.1}
+        proc._name_top_taxa()
+        assert proc.state.taxa_names == {"11084": "Tick-borne encephalitis virus", "7": ""}
+        proc._name_top_taxa()
+        assert sorted(calls) == [7, 11084]                # not again on the next batch
+
+    def test_no_lookup_without_a_taxonomy_db(self, proc, tmp_dir):
+        proc.config.taxonomy.NCBI.db = str(tmp_dir / "absent.db")
+        proc.state.F = {"11084": 1.0}
+        proc._name_top_taxa()
+        assert proc.state.taxa_names == {}               # retried once a DB exists

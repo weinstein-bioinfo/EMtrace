@@ -49,6 +49,9 @@ class PipelineJob:
     # assembly step and which preprocessing steps are applicable.
     # Currently supported: "nanopore" (default), "illumina_pe".
     platform: str = "nanopore"
+    # Settings profile of the config the job runs with ("default", "16S");
+    # set by Pipeline.setup_job and recorded in job.yaml.
+    profile: str = ""
 
     # -- Directory layout --
     output_dir: Path = Path(".")
@@ -131,6 +134,7 @@ class PipelineJob:
             "input_reads": str(self.input_reads) if self.input_reads else "",
             "input_reads_r2": str(self.input_reads_r2) if self.input_reads_r2 else "",
             "platform": self.platform,
+            "profile": self.profile or existing.get("profile", ""),
             "created_at": existing.get("created_at") or datetime.now().isoformat(timespec="seconds"),
             "emtrace_version": __version__,
         }

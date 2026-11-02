@@ -698,7 +698,41 @@ def _accession_from_db_path(db: str) -> str:
     return m.group(1) if m else "NA"
 
 
-ANALYSIS_MODES = ("virome", "16S")
+# Settings profiles: "default" is default.yaml itself; every other profile is a
+# bundled overlay (config/<name>.yaml). Aliases are accepted wherever a profile
+# name is (CLI --profile, the config's `profile` key).
+PROFILE_ALIASES = {"virome": "default"}
+
+
+def available_profiles() -> list[str]:
+    """``"default"`` followed by the bundled overlay profiles (e.g. ``"16S"``)."""
+    config_dir = importlib.resources.files("emtrace") / "config"
+    overlays = sorted(
+        f.name[: -len(".yaml")]
+        for f in config_dir.iterdir()
+        if f.name.endswith(".yaml") and not f.name.startswith("default")
+    )
+    return ["default", *overlays]
+
+
+def canonical_profile(name: str) -> str:
+    """Resolve a profile name or alias, case-insensitively: ``virome`` → ``default``."""
+    from emtrace.core.exceptions import ConfigurationError
+
+    key = PROFILE_ALIASES.get(name.lower(), name).lower()
+    profiles = available_profiles()
+    for profile in profiles:
+        if profile.lower() == key:
+            return profile
+    aliases = ", ".join(f"{a} = {p}" for a, p in PROFILE_ALIASES.items())
+    raise ConfigurationError(
+        f"Unknown profile '{name}'. Available: {', '.join(profiles)} (alias: {aliases})"
+    )
+
+
+def _preset_profile(anns: str) -> str:
+    """The profile an annotation preset belongs to: ``16S.*`` → 16S, else default."""
+    return "16S" if anns.startswith("16S.") else "default"
 
 
 def _leaf_paths(d: Dict[str, Any], prefix: tuple = ()) -> list[tuple]:
@@ -843,6 +877,11 @@ class EMtraceConfig(BaseModel):
     # Statistics
     stats: StatsConfig = Field(default_factory=StatsConfig)
 
+    # Settings profile the config was built from: "default" or a bundled
+    # overlay such as "16S" (CLI --profile, GUI Profile switch). None = not
+    # recorded (configs written before 1.0.2); active_profile then infers it.
+    profile: Optional[str] = None
+
     # Database root directory — persists EMTRACE_DB_DIR across sessions.
     # When set, applied to the env var at config load time (shell export wins).
     db_dir: Optional[str] = None
@@ -859,6 +898,11 @@ class EMtraceConfig(BaseModel):
     # ------------------------------------------------------------------ #
     # Validators
     # ------------------------------------------------------------------ #
+
+    @field_validator("profile")
+    @classmethod
+    def _check_profile(cls, v: Optional[str]) -> Optional[str]:
+        return canonical_profile(v) if v else None
 
     @model_validator(mode="after")
     def _apply_db_dir(self) -> "EMtraceConfig":
@@ -882,8 +926,10 @@ class EMtraceConfig(BaseModel):
 
     @classmethod
     def create_default(cls) -> EMtraceConfig:
-        """Load the bundled default config."""
-        return cls._from_raw(cls._default_raw())
+        """Load the bundled default config (the ``default`` profile)."""
+        cfg = cls._from_raw(cls._default_raw())
+        cfg.profile = "default"
+        return cfg
 
     @classmethod
     def from_profile(cls, name: str) -> EMtraceConfig:
@@ -903,69 +949,74 @@ class EMtraceConfig(BaseModel):
         Merge rule: mappings merge key by key; scalars and lists replace
         wholesale, so a profile that names ``parasite_genera`` or
         ``anns.options`` sets the whole list rather than appending to it.
+
+        *name* may be an alias (``virome`` = ``default``); the result records
+        the canonical name in ``profile``.
         """
-        return cls._from_raw(_deep_merge(cls._default_raw(), cls._profile_raw(name)))
+        name = canonical_profile(name)
+        cfg = cls._from_raw(_deep_merge(cls._default_raw(), cls._profile_raw(name)))
+        cfg.profile = name
+        return cfg
 
     @classmethod
     def _profile_raw(cls, name: str) -> Dict[str, Any]:
-        """A bundled profile's overlay, parsed but not merged."""
-        config_dir = importlib.resources.files("emtrace") / "config"
-        profile_yaml = config_dir / f"{name}.yaml"
-        from emtrace.core.exceptions import ConfigurationError
-
-        if not profile_yaml.is_file():
-            available = sorted(
-                f.name[: -len(".yaml")]
-                for f in config_dir.iterdir()
-                if f.name.endswith(".yaml") and not f.name.startswith("default")
-            )
-            raise ConfigurationError(
-                f"Unknown profile '{name}'. Available: {', '.join(available) or 'none'}"
-            )
+        """A bundled profile's overlay, parsed but not merged (``{}`` for default)."""
+        name = canonical_profile(name)
+        if name == "default":
+            return {}
+        profile_yaml = importlib.resources.files("emtrace") / "config" / f"{name}.yaml"
         with importlib.resources.as_file(profile_yaml) as path:
             with open(path) as fh:
                 return yaml.safe_load(fh) or {}
 
     # ------------------------------------------------------------------
-    # Analysis mode: virome (default.yaml) or 16S (the 16S profile)
+    # Settings profile: default (default.yaml) or a bundled overlay (16S)
     # ------------------------------------------------------------------
 
     @property
-    def mode(self) -> str:
-        """``"16S"`` when annotation targets a 16S database, else ``"virome"``.
+    def active_profile(self) -> str:
+        """The recorded ``profile``, else inferred from the annotation.
 
-        Decided by the annotation preset (``16S.*``), or, for a custom
-        database list, by the group of its round-1 databases.
+        Configs without a ``profile`` key (written before 1.0.2) count as
+        ``"16S"`` when annotation targets a 16S database (a ``16S.*`` preset,
+        or round-1 databases of group 16S), else as ``"default"``.
         """
-        anns = self.annotation.anns or ""
-        if anns:
-            return "16S" if anns.startswith("16S.") else "virome"
+        if self.profile:
+            return self.profile
+        if self.annotation.anns:
+            return _preset_profile(self.annotation.anns)
         keys = [k.strip() for k in (self.annotation.ann1 or "").split(",") if k.strip()]
         groups = {self.databases[k].group for k in keys if k in self.databases}
-        return "16S" if groups == {"16S"} else "virome"
+        return "16S" if groups == {"16S"} else "default"
 
-    def with_mode(self, mode: str) -> tuple[EMtraceConfig, list[tuple[str, Any, Any]]]:
-        """Return a copy switched to *mode*, and the settings that changed.
+    @classmethod
+    def _profile_paths(cls) -> list[tuple]:
+        """Key paths any bundled overlay profile sets, in file order."""
+        paths: list[tuple] = []
+        for name in available_profiles()[1:]:
+            for path in _leaf_paths(cls._profile_raw(name)):
+                if path not in paths:
+                    paths.append(path)
+        return paths
 
-        The settings involved are exactly those the 16S profile names. For
-        ``"16S"`` they take the profile's values, for ``"virome"`` the
-        default.yaml values; every other setting is kept. The annotation
-        preset is kept when it already belongs to *mode* (e.g. ``16S.emu``),
-        otherwise it becomes the mode's default preset.
+    def with_profile(self, name: str) -> tuple[EMtraceConfig, list[tuple[str, Any, Any]]]:
+        """Return a copy switched to profile *name*, and the settings that changed.
+
+        The settings involved are exactly those the overlay profiles name;
+        they take the values of *name* (default.yaml for ``"default"``) and
+        every other setting is kept. The annotation preset is kept when it
+        already belongs to *name* (e.g. ``16S.emu``), otherwise it becomes
+        the profile's preset. The copy records ``profile = name``.
 
         Changes are ``(dotted key, old, new)``.
         """
-        if mode not in ANALYSIS_MODES:
-            raise ValueError(f"mode must be one of {ANALYSIS_MODES}, got {mode!r}")
-        source = (
-            EMtraceConfig.from_profile("16S") if mode == "16S"
-            else EMtraceConfig.create_default()
-        )
+        name = canonical_profile(name)
+        source = EMtraceConfig.from_profile(name)
         new = self.model_copy(deep=True)
         changes: list[tuple[str, Any, Any]] = []
-        for path in _leaf_paths(self._profile_raw("16S")):
+        for path in self._profile_paths():
             if path == ("annotation", "anns"):
-                if self.mode == mode and self.annotation.anns:
+                if self.annotation.anns and _preset_profile(self.annotation.anns) == name:
                     continue
                 new.annotation.ann1 = ""
                 new.annotation.ann2 = ""
@@ -973,7 +1024,23 @@ class EMtraceConfig(BaseModel):
             if old != value:
                 _set_path(new, path, value)
                 changes.append((".".join(path), old, value))
+        new.profile = name
         return new, changes
+
+    def profile_deviations(self) -> list[tuple[str, Any, Any]]:
+        """Profile settings that differ from ``active_profile``'s values.
+
+        Covers the keys the overlay profiles name. Returns
+        ``(dotted key, value here, profile value)``, empty when the config
+        matches its profile.
+        """
+        source = EMtraceConfig.from_profile(self.active_profile)
+        out = []
+        for path in self._profile_paths():
+            value, expected = _get_path(self, path), _get_path(source, path)
+            if value != expected:
+                out.append((".".join(path), value, expected))
+        return out
 
     @classmethod
     def _default_raw(cls) -> Dict[str, Any]:
@@ -1152,6 +1219,7 @@ class EMtraceConfig(BaseModel):
             report=report,
             stats=stats,
             db_dir=db_dir,
+            profile=raw.get("profile"),
         )
 
     # ------------------------------------------------------------------ #

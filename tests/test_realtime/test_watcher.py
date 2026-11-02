@@ -123,3 +123,81 @@ class TestFastqWatcher:
         w.get(timeout=3.0)
         w.stop()
         assert w.seen_count >= 1
+
+
+class TestMovedAndMissedFiles:
+    """Files moved/renamed in, missed events, and renames of processed files."""
+
+    FQ = "@r1\nATGC\n+\nIIII\n"
+
+    def _watcher(self, d: Path, **kw) -> FastqWatcher:
+        return FastqWatcher(d, debounce_seconds=0.2, poll_interval=0.1, **kw)
+
+    def test_detects_file_moved_in(self, tmp_dir: Path):
+        watched, outside = tmp_dir / "watch", tmp_dir / "outside"
+        watched.mkdir(); outside.mkdir()
+        src = outside / "moved.fastq"
+        src.write_text(self.FQ)
+        w = self._watcher(watched)
+        w.start()
+        src.rename(watched / "moved.fastq")              # Finder drag / mv
+        path = w.get(timeout=5.0)
+        w.stop()
+        assert path is not None and path.name == "moved.fastq"
+
+    def test_detects_temp_then_rename(self, tmp_dir: Path):
+        w = self._watcher(tmp_dir)
+        w.start()
+        tmp = tmp_dir / ".reads.fastq.gz.XYZ123"           # rsync-style temp name
+        tmp.write_text(self.FQ)
+        tmp.rename(tmp_dir / "reads.fastq")
+        path = w.get(timeout=5.0)
+        w.stop()
+        assert path is not None and path.name == "reads.fastq"
+
+    def test_renamed_processed_file_is_not_processed_again(self, tmp_dir: Path):
+        w = self._watcher(tmp_dir)
+        w.start()
+        fq = tmp_dir / "a.fastq"
+        fq.write_text(self.FQ)
+        assert w.get(timeout=5.0) is not None
+        fq.rename(tmp_dir / "a_old.fastq")
+        time.sleep(1.0)
+        assert w.get_nowait() is None
+        w.stop()
+
+    def test_on_moved_out_of_scope_is_ignored(self, tmp_dir: Path):
+        w = self._watcher(tmp_dir / "watch")
+        (tmp_dir / "watch").mkdir()
+        w._on_file_moved(tmp_dir / "watch" / "x.fastq", tmp_dir / "elsewhere" / "x.fastq")
+        assert w._pending == {}
+
+    def test_rescan_catches_missed_events(self, tmp_dir: Path):
+        w = self._watcher(tmp_dir, rescan_interval=0.3)
+        w.start()
+        w._watchdog_active = True                          # as if watchdog ran
+        if w._observer is not None:                        # ...but drops every event
+            w._observer.stop(); w._observer.join(timeout=5); w._observer = None
+        (tmp_dir / "missed.fastq").write_text(self.FQ)
+        path = w.get(timeout=5.0)
+        w.stop()
+        assert path is not None and path.name == "missed.fastq"
+
+    def test_preexisting_files_stay_ignored_by_scans(self, tmp_dir: Path):
+        (tmp_dir / "old.fastq").write_text(self.FQ)
+        w = self._watcher(tmp_dir, rescan_interval=0.2)
+        w._start_observer = w._start_poller                # polling scans every 0.1 s
+        w.start()
+        time.sleep(0.8)
+        assert w.get_nowait() is None
+        w.stop()
+
+    def test_poller_promotes_a_file_despite_frequent_scans(self, tmp_dir: Path):
+        # Scans restart the debounce only when the file grew, so poll < debounce works
+        w = FastqWatcher(tmp_dir, debounce_seconds=0.5, poll_interval=0.1)
+        w._start_observer = w._start_poller
+        w.start()
+        (tmp_dir / "p.fastq").write_text(self.FQ)
+        path = w.get(timeout=5.0)
+        w.stop()
+        assert path is not None and path.name == "p.fastq"
