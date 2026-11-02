@@ -52,6 +52,7 @@ from PyQt6.QtWidgets import (
 from emtrace.core.config import (
     AnnotationConfig,
     AssemblyConfig,
+    AssemblyMedakaConfig,
     BgFilterConfig,
     AssemblyMinimapConfig,
     BgFilterMinimapConfig,
@@ -203,6 +204,12 @@ _FIELD_LABELS: Dict[str, str] = {
     "assembly.minimap.s":              "DP alignment score threshold (-s, requires -c, 0 = default)",
     "assembly.minimap.k":              "k-mer size (-k, 0 = default 15)",
     "assembly.minimap.w":              "Minimizer window (-w, 0 = default 10)",
+    "assembly.medaka.enabled":         "Polish consensus with Medaka",
+    "assembly.medaka.model":           "Model (auto = from read headers)",
+    "assembly.medaka.fallback_model":  "Fallback model (empty = Medaka default)",
+    "assembly.medaka.path":            "Medaka executable or bin/ dir (empty = PATH)",
+    "assembly.medaka.batch_size":      "Inference batch size",
+    "assembly.medaka.cpu":             "Run inference on the CPU",
     "em.temp":                   "Temperature",
     "em.max_iter":               "Max iterations",
     "em.log_L_threshold":        "Log-likelihood threshold",
@@ -1240,6 +1247,12 @@ class ConfigEditorWidget(QScrollArea):
         ref_auto_w = self._field_widgets.get("assembly.ref_auto.enabled")
         if ref_auto_w is not None:
             asm_data["ref_auto"]["enabled"] = self._read_widget_value(ref_auto_w)
+        for field_name in AssemblyMedakaConfig.model_fields:
+            w = self._field_widgets.get(f"assembly.medaka.{field_name}")
+            if w is not None:
+                value = self._read_widget_value(w)
+                # path is a str field; an empty path picker reads as None
+                asm_data["medaka"][field_name] = "" if value is None else value
         assembly = AssemblyConfig(**asm_data)
 
         # EM
@@ -1650,6 +1663,27 @@ class ConfigEditorWidget(QScrollArea):
         )
         self._field_widgets["assembly.min_ac"] = min_ac_w
         form.addRow("Min allele count:", min_ac_w)
+
+        # Medaka polishing of the consensus (ONT single-end only)
+        sep2 = QFrame()
+        sep2.setFrameShape(QFrame.Shape.HLine)
+        form.addRow(sep2)
+        form.addRow(_make_section_label("Medaka polishing (ONT):"), QWidget())
+        for field_name in ("enabled", "model", "fallback_model", "path", "batch_size", "cpu"):
+            key = f"assembly.medaka.{field_name}"
+            cur_val = getattr(asm.medaka, field_name)
+            if field_name == "path":
+                w = self._create_path_picker(cur_val)
+            else:
+                w = self._create_widget(
+                    AssemblyMedakaConfig.model_fields[field_name], field_name, key, cur_val,
+                )
+            self._field_widgets[key] = w
+            form.addRow("  " + _FIELD_LABELS[key] + ":", w)
+        self._field_widgets["assembly.medaka.enabled"].setToolTip(
+            "Polish the bcftools consensus with Medaka (ONT single-end reads only).\n"
+            "Skipped with a warning if Medaka is not installed; CLI --medaka / --no-medaka."
+        )
 
         section.set_content_layout(form)
         return section
