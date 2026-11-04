@@ -1163,29 +1163,29 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     def _on_open_manual(self) -> None:
-        """Help > User Guide — open docs/UserGuide.v1.0.md with the system default app."""
-        import os
-        import subprocess
-        import sys
+        """Help > User Guide — open docs/UserGuide.v1.0.html in the browser.
+
+        The HTML is rendered from the .md by scripts/build_userguide.sh: every
+        OS opens .html in a browser, where the TOC links work, whereas .md
+        usually lands in a plain text editor. Falls back to the .md.
+        """
+        from PyQt6.QtCore import QUrl
+        from PyQt6.QtGui import QDesktopServices
         from emtrace.gui.platform import bundle_root
-        manual = bundle_root() / "docs" / "UserGuide.v1.0.md"
+        docs = bundle_root() / "docs"
+        manual = docs / "UserGuide.v1.0.html"
+        if not manual.exists():
+            manual = docs / "UserGuide.v1.0.md"
         if not manual.exists():
             QMessageBox.warning(
                 self, "User guide not found",
-                f"Could not find the user guide at:\n{manual}",
+                f"Could not find the user guide in:\n{docs}",
             )
             return
-        try:
-            if sys.platform == "darwin":
-                subprocess.Popen(["open", str(manual)])
-            elif sys.platform.startswith("linux"):
-                subprocess.Popen(["xdg-open", str(manual)])
-            else:
-                os.startfile(str(manual))  # type: ignore[attr-defined]
-        except Exception as exc:  # noqa: BLE001
+        if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(manual))):
             QMessageBox.warning(
                 self, "Cannot open user guide",
-                f"Failed to open the user guide:\n{exc}",
+                f"Failed to open the user guide:\n{manual}",
             )
 
     def _on_about(self) -> None:

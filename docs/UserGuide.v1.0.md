@@ -134,8 +134,8 @@ xattr -dr com.apple.quarantine /Applications/EMtrace.app
 Each release lists SHA-256 checksums of the bundles. To check a download:
 
 ```bash
-shasum -a 256 EMtrace-macos-arm64-1.0.1.dmg                       # macOS
-Get-FileHash EMtrace-win-x86_64-1.0.1.zip -Algorithm SHA256       # Windows PowerShell
+shasum -a 256 EMtrace-macos-arm64-1.0.2.dmg                       # macOS
+Get-FileHash EMtrace-win-x86_64-1.0.2.zip -Algorithm SHA256       # Windows PowerShell
 ```
 
 <a id="building-from-source"></a>
@@ -275,7 +275,14 @@ on assembling custom curated databases will be added in a later revision.
 <a id="running-emtrace-gui"></a>
 ## Running EMtrace GUI
 
-Launch the desktop application with:
+Start the desktop application in one of two ways:
+
+- **Installed app (prebuilt bundle):** double-click **EMtrace** in
+  *Applications* (macOS; or find it with Spotlight, ⌘-Space) or `EMtrace.exe`
+  in the unzipped folder (Windows). The first start shows a security warning;
+  see [Opening the app](#opening-the-app).
+- **From a terminal (installed from source):** activate the environment
+  EMtrace was installed into and run:
 
 ```bash
 emtrace gui

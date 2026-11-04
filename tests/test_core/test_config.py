@@ -206,3 +206,26 @@ class TestRetiredBwa:
         cfg = EMtraceConfig.create_default()
         assert "bwa" not in caplog.text.lower()
         assert all(e.search.lower() != "bwa" for e in cfg.host_databases.values())
+
+
+class TestDbDirFromUserConfig:
+    """GUI issue #1 (T2.7): db_dir saved by the Database Manager must expand
+    the taxonomy paths on the first config load after an app restart."""
+
+    @pytest.fixture
+    def fresh_start(self, tmp_dir: Path, monkeypatch):
+        monkeypatch.delenv("EMTRACE_DB_DIR", raising=False)
+        monkeypatch.setattr(
+            "emtrace.utils.user_config.load_user_config",
+            lambda: {"db_dir": str(tmp_dir)},
+        )
+        return tmp_dir
+
+    def test_default_config_expands_taxonomy(self, fresh_start: Path):
+        cfg = EMtraceConfig.create_default()
+        assert cfg.taxonomy.NCBI.db == f"{fresh_start}/taxonomy/ncbi/taxonomy.db"
+        assert cfg.taxonomy.SILVA.db == f"{fresh_start}/taxonomy/silva/taxonomy.db"
+
+    def test_model_defaults_expand_at_call_time(self, fresh_start: Path):
+        EMtraceConfig.create_default()          # sets the env var
+        assert TaxonomyConfig().NCBI.db.startswith(str(fresh_start))

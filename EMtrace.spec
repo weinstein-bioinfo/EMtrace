@@ -96,7 +96,7 @@ if _pkg_data.is_dir():
     datas.append((str(_pkg_data), os.path.join('emtrace', 'data')))
 
 # User manual — shipped so the GUI's help can open it offline
-for _doc in ('UserGuide.v1.0.md', 'UserGuide.v1.0.pdf'):
+for _doc in ('UserGuide.v1.0.html', 'UserGuide.v1.0.md', 'UserGuide.v1.0.pdf'):
     _p = PROJECT_ROOT / 'docs' / _doc
     if _p.is_file():
         datas.append((str(_p), 'docs'))

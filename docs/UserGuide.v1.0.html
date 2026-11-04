@@ -1,0 +1,1417 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc 3.10.2" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>EMtrace User Guide</title>
+  <style>
+
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+  <style type="text/css">
+body {
+max-width: 52em;
+margin: 2em auto;
+padding: 0 1em;
+font: 16px/1.55 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+color: #1f2328;
+background: #fff;
+}
+h1, h2, h3, h4 { line-height: 1.25; margin-top: 1.6em; }
+h1, h2 { border-bottom: 1px solid #d8dee4; padding-bottom: .3em; }
+a { color: #0969da; text-decoration: none; }
+a:hover { text-decoration: underline; }
+code {
+font: 0.9em/1.45 ui-monospace, Menlo, Consolas, monospace;
+background: #f0f2f4;
+padding: .1em .3em;
+border-radius: 4px;
+}
+pre {
+background: #f6f8fa;
+border: 1px solid #d8dee4;
+border-radius: 6px;
+padding: .8em 1em;
+overflow-x: auto;
+}
+pre code { background: none; padding: 0; }
+table { border-collapse: collapse; margin: 1em 0; }
+th, td { border: 1px solid #d8dee4; padding: .35em .7em; text-align: left; vertical-align: top; }
+th { background: #f6f8fa; }
+blockquote { margin: 1em 0; padding: 0 1em; color: #59636e; border-left: 4px solid #d8dee4; }
+@media (prefers-color-scheme: dark) {
+body { color: #e6edf3; background: #0d1117; }
+h1, h2 { border-color: #30363d; }
+a { color: #4493f8; }
+code { background: #262c36; }
+pre, th { background: #161b22; }
+pre, th, td, blockquote { border-color: #30363d; }
+blockquote { color: #9198a1; }
+}
+</style>
+</head>
+<body>
+<h1 id="emtrace-user-guide">EMtrace User Guide</h1>
+<p><em>Running EMtrace on a macOS or Windows computer.</em></p>
+<p><strong>Version:</strong> 1.0 · <strong>Last updated:</strong>
+2026-10-12</p>
+<h2 id="table-of-contents">Table of Contents</h2>
+<ul>
+<li><a href="#about-emtrace">About EMtrace</a></li>
+<li><a href="#installing-emtrace">Installing EMtrace</a>
+<ul>
+<li><a href="#setting-up-directories">Setting up directories</a></li>
+<li><a href="#using-a-prebuilt-bundle-macoswindows">Using a prebuilt
+bundle (macOS/Windows)</a>
+<ul>
+<li><a href="#opening-the-app">Opening the app</a></li>
+</ul></li>
+<li><a href="#building-from-source">Building from source</a></li>
+<li><a href="#installing-dependencies">Installing dependencies</a></li>
+<li><a href="#installing-databases">Installing databases</a></li>
+<li><a href="#installing-host-and-background-filters">Installing host
+and background filters</a></li>
+<li><a href="#creating-custom-databases-and-filters">Creating custom
+databases and filters</a></li>
+</ul></li>
+<li><a href="#running-emtrace-gui">Running EMtrace (GUI)</a>
+<ul>
+<li><a href="#creating-a-job">Creating a job</a></li>
+<li><a href="#configuring-settings">Configuring settings</a></li>
+</ul></li>
+<li><a href="#annotation-strategies-and-databases">Annotation strategies
+and databases</a>
+<ul>
+<li><a href="#virus-surveillance-studies">Virus surveillance
+studies</a></li>
+<li><a href="#virus-metagenomics">Virus metagenomics</a></li>
+</ul></li>
+<li><a href="#example-1-a-virus-surveillance-run">Example 1: A virus
+surveillance run</a></li>
+<li><a href="#running-emtrace-cli">Running EMtrace (CLI)</a></li>
+<li><a href="#real-time-monitoring">Real-time monitoring</a></li>
+<li><a href="#citing-emtrace">Citing EMtrace</a></li>
+<li><a href="#contact">Contact</a></li>
+</ul>
+<hr />
+<p><a id="about-emtrace"></a></p>
+<h2 id="about-emtrace">About EMtrace</h2>
+<p>EMtrace is a bioinformatics pipeline for taxonomic binning and
+reference-based consensus assembly of long-read metagenomic data,
+designed primarily for Oxford Nanopore (MinION/Flongle) viral
+sequencing. It is implemented in Python and provides a graphical
+interface and a real-time mode that processes basecalled reads as they
+are produced during a sequencing run.</p>
+<p>A typical analysis proceeds through the following stages:</p>
+<ol type="1">
+<li><strong>Quality preprocessing</strong> — adapter trimming
+(<em>Porechop</em> / <em>Porechop_ABI</em>) and quality- and
+length-based filtering (<em>Chopper</em>).</li>
+<li><strong>Host and background depletion</strong> — alignment-based
+removal of host and background reads against one or more reference
+genomes (<em>Minimap2</em>).</li>
+<li><strong>Taxonomic annotation</strong> — read classification against
+curated reference databases using <em>Minimap2</em> and
+<em>DIAMOND</em>, in up to two chained rounds.</li>
+<li><strong>Abundance estimation</strong> — an expectation–maximization
+(EM) algorithm resolves multi-mapping reads into per-taxon abundance
+probabilities.</li>
+<li><strong>Reference-based assembly</strong> <em>(optional)</em> —
+consensus reconstruction against user-supplied references, or references
+selected automatically from the reads&#39; hits
+(<code>--ref_auto</code>).</li>
+<li><strong>Reporting</strong> — interactive HTML reports, taxonomic
+abundance tables, and quality-control statistics.</li>
+</ol>
+<p>EMtrace is intended for offline, self-contained use on a laptop or
+workstation: reference databases are downloaded once and stored locally,
+so no network connection is required at analysis time. This makes it
+suitable for surveillance and field applications where reproducibility
+and data locality matter.</p>
+<p>The pipeline has three interfaces that share the same engine and
+configuration files:</p>
+<ol type="1">
+<li><strong>command-line interface</strong>
+(<code>emtrace run</code>)</li>
+<li><strong>desktop GUI</strong> (<code>emtrace gui</code>)</li>
+<li><strong>real-time monitor</strong> (<code>emtrace watch</code>)</li>
+</ol>
+<hr />
+<p><a id="installing-emtrace"></a></p>
+<h2 id="installing-emtrace">Installing EMtrace</h2>
+<p><a id="setting-up-directories"></a></p>
+<h3 id="setting-up-directories">Setting up directories</h3>
+<p>EMtrace separates <em>software</em>, <em>reference data</em>, and
+<em>results</em>. We recommend a layout such as:</p>
+<pre><code>EMtrace/                 # the application (source or bundle)
+EMtrace-databases/       # annotation databases and host/background filters
+EMtrace-projects/        # one subdirectory per project (study), one folder per sample</code></pre>
+<p>The location of the reference data is provided to the pipeline
+through the <code>EMTRACE_DB_DIR</code> environment variable (or
+directly in the configuration file), which database paths in the
+configuration expand at load time:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">EMTRACE_DB_DIR</span><span class="op">=</span>/path/to/EMtrace-databases</span></code></pre></div>
+<p><strong>NOTE:</strong> GUI users do not need to set this variable
+manually. In the desktop application, open the
+<strong>Databases</strong> manager and click <strong>Browse</strong>
+next to the <code>EMTRACE_DB_DIR</code> field to choose the database
+root. The selection is saved to a per-user configuration file and
+applied automatically on all subsequent runs.<br />
+An <code>EMTRACE_DB_DIR</code> value set in the shell environment takes
+precedence over the stored setting.</p>
+<p><a id="using-a-prebuilt-bundle-macoswindows"></a></p>
+<h3 id="using-a-prebuilt-bundle-macoswindows">Using a prebuilt bundle
+(macOS/Windows)</h3>
+<p>Self-contained macOS (<code>.app</code> in a <code>.dmg</code>) and
+Windows (<code>.zip</code>) bundles are attached to each <a href="https://github.com/weinstein-bioinfo/EMtrace/releases">GitHub
+release</a>. They do not need a separate Python installation.</p>
+<p><a id="opening-the-app"></a></p>
+<h4 id="opening-the-app">Opening the app</h4>
+<p>The bundles are not signed with an Apple or Microsoft certificate, so
+the operating system warns the first time they are opened. This is
+expected.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Platform</th>
+<th style="text-align: left;">What you see</th>
+<th style="text-align: left;">What to do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">macOS 15 and later</td>
+<td style="text-align: left;">&quot;Apple could not verify &#39;EMtrace&#39; is free
+of malware…&quot;</td>
+<td style="text-align: left;">Close the dialog. Open <strong>System
+Settings → Privacy &amp; Security</strong>, scroll down to the message
+about EMtrace and click <strong>Open Anyway</strong>, then confirm.</td>
+</tr>
+<tr>
+<td style="text-align: left;">macOS 14 and earlier</td>
+<td style="text-align: left;">The same warning</td>
+<td style="text-align: left;">Control-click (right-click) the app,
+choose <strong>Open</strong>, then <strong>Open</strong> again.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Windows</td>
+<td style="text-align: left;">SmartScreen: &quot;Windows protected your
+PC&quot;</td>
+<td style="text-align: left;">Click <strong>More info</strong>, then
+<strong>Run anyway</strong>.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Windows</td>
+<td style="text-align: left;">Antivirus software quarantines
+<code>EMtrace.exe</code></td>
+<td style="text-align: left;">Bundled Python applications are a common
+false positive. Restore the file and add an exclusion, or install from
+source (below).</td>
+</tr>
+</tbody>
+</table>
+<br>
+
+<p>Advanced macOS users can instead remove the download flag in a
+terminal:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">xattr</span> <span class="at">-dr</span> com.apple.quarantine /Applications/EMtrace.app</span></code></pre></div>
+<p>Each release lists SHA-256 checksums of the bundles. To check a
+download:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">shasum</span> <span class="at">-a</span> 256 EMtrace-macos-arm64-1.0.2.dmg                       <span class="co"># macOS</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Get-FileHash</span> EMtrace-win-x86_64-1.0.2.zip <span class="at">-Algorithm</span> SHA256       <span class="co"># Windows PowerShell</span></span></code></pre></div>
+<p><a id="building-from-source"></a></p>
+<h3 id="building-from-source">Building from source</h3>
+<p>EMtrace is a standard Python package (Python ≥ 3.10). Clone the
+repository and install it into a virtual environment:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/weinstein-bioinfo/EMtrace.git</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> EMtrace</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> <span class="at">-m</span> venv .venv</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="bu">source</span> .venv/bin/activate          <span class="co"># Windows: .venv\Scripts\activate</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="at">-e</span> .                   <span class="co"># editable install</span></span></code></pre></div>
+<p>The graphical interface depends on PyQt6, which is an optional
+extra:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="at">-e</span> <span class="st">&quot;.[gui]&quot;</span></span></code></pre></div>
+<p>Verify the installation:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">emtrace</span> <span class="at">--help</span></span></code></pre></div>
+<p><a id="installing-dependencies"></a></p>
+<h3 id="installing-dependencies">Installing dependencies</h3>
+<p>EMtrace calls a small set of established command-line tools, which
+must be available on the <code>PATH</code>.</p>
+<p>The Python dependencies (NumPy, pandas, Biopython, Pydantic, and
+others) are installed automatically by <code>pip</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Purpose</th>
+<th>Required for</th>
+<th>Website</th>
+<th>Original article</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><em>Chopper</em></td>
+<td>Quality/length filtering</td>
+<td>Preprocessing</td>
+<td><a href="https://github.com/wdecoster/chopper">https://github.com/wdecoster/chopper</a></td>
+<td><a href="https://doi.org/10.1093/bioinformatics/btad311">https://doi.org/10.1093/bioinformatics/btad311</a></td>
+</tr>
+<tr>
+<td><em>DIAMOND</em></td>
+<td>Translated protein classification</td>
+<td>Protein strategies</td>
+<td><a href="https://github.com/bbuchfink/diamond">https://github.com/bbuchfink/diamond</a></td>
+<td><a href="https://doi.org/10.1038/s41592-021-01101-x">https://doi.org/10.1038/s41592-021-01101-x</a></td>
+</tr>
+<tr>
+<td><em>Minimap2</em></td>
+<td>Alignment, host filtering, classification</td>
+<td>All runs</td>
+<td><a href="https://github.com/lh3/minimap2">https://github.com/lh3/minimap2</a></td>
+<td><a href="https://doi.org/10.1093/bioinformatics/bty191">https://doi.org/10.1093/bioinformatics/bty191</a></td>
+</tr>
+<tr>
+<td><em>orfipy</em></td>
+<td>ORF detection for DIAMOND blastp</td>
+<td>Protein strategies</td>
+<td><a href="https://github.com/urmi-21/orfipy">https://github.com/urmi-21/orfipy</a></td>
+<td><a href="https://doi.org/10.1093/bioinformatics/btab090">https://doi.org/10.1093/bioinformatics/btab090</a></td>
+</tr>
+<tr>
+<td><em>Porechop</em> / <em>Porechop_ABI</em></td>
+<td>Adapter trimming</td>
+<td>Preprocessing</td>
+<td><a href="https://github.com/bonsai-team/Porechop_ABI">https://github.com/bonsai-team/Porechop_ABI</a></td>
+<td><a href="https://doi.org/10.1101/2022.07.07.499093">https://doi.org/10.1101/2022.07.07.499093</a></td>
+</tr>
+<tr>
+<td><em>SAMtools</em>, <em>BCFtools</em></td>
+<td>Consensus assembly</td>
+<td>Assembly step</td>
+<td><a href="http://www.htslib.org/">http://www.htslib.org/</a></td>
+<td><a href="https://doi.org/10.1093/gigascience/giab008">https://doi.org/10.1093/gigascience/giab008</a></td>
+</tr>
+<tr>
+<td><em>[BLAST+]</em></td>
+<td>Nucleotide/protein classification</td>
+<td>BLAST-based strategies [Optional]</td>
+<td><a href="https://blast.ncbi.nlm.nih.gov/">https://blast.ncbi.nlm.nih.gov/</a></td>
+<td><a href="https://doi.org/10.1186/1471-2105-10-421">https://doi.org/10.1186/1471-2105-10-421</a></td>
+</tr>
+<tr>
+<td><em>[Medaka]</em></td>
+<td>Consensus polishing (on by default; skipped with a warning if
+missing)</td>
+<td>Assembly step [Optional]</td>
+<td><a href="https://github.com/nanoporetech/medaka">https://github.com/nanoporetech/medaka</a></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h4 id="installing-dependencies-with-conda">Installing dependencies with
+Conda</h4>
+<p>The external tools are available from Bioconda. We recommend a
+dedicated environment:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">conda</span> create <span class="at">-n</span> emtrace <span class="at">-c</span> conda-forge <span class="at">-c</span> bioconda <span class="dt">\</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    minimap2 chopper porechop_abi diamond <span class="dt">\</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    orfipy samtools bcftools</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="ex">conda</span> activate emtrace</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="at">-e</span> .</span></code></pre></div>
+<p>Medaka has heavy dependencies and is best kept in its own
+environment; point EMtrace to it with <code>assembly.medaka.path</code>
+in the configuration (for example
+<code>~/miniconda3/envs/medaka/bin</code>):</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">conda</span> create <span class="at">-n</span> medaka <span class="at">-c</span> conda-forge <span class="at">-c</span> bioconda medaka</span></code></pre></div>
+<h4 id="installing-dependencies-manually">Installing dependencies
+manually</h4>
+<p>Each tool may also be installed from its upstream release and placed
+on the <code>PATH</code>. EMtrace checks for required tools at startup
+and reports any that are missing.</p>
+<p><a id="installing-databases"></a></p>
+<h3 id="installing-databases">Installing databases</h3>
+<p>Annotation databases are managed through the <code>databases</code>
+subcommand:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">emtrace</span> databases <span class="at">--list</span>                 <span class="co"># show available / installed databases</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="ex">emtrace</span> databases <span class="at">--install</span> minimap.refseq.abv.1g</span></code></pre></div>
+<p>Databases are downloaded from public object storage and stored under
+<code>EMTRACE_DB_DIR</code>.</p>
+<p>Database names encode their taxonomic scope with the suffixes used
+throughout EMtrace:</p>
+<ul>
+<li><strong>vi</strong> — viruses only;</li>
+<li><strong>ab</strong> — archaea and bacteria;</li>
+<li><strong>abv</strong> — archaea, bacteria, and viruses (RefSeq
+representative/reference genomes);</li>
+<li><strong>abv.1g</strong> — as <em>abv</em>, but reduced to one genome
+per genus for bacteria and archaea (largest genome), while all available
+viral genomes are retained.</li>
+</ul>
+<p>Supported reference databases include:</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Search</th>
+<th>Size (GB)</th>
+<th>Description</th>
+<th>Applications</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>minimap.refseq.abv.1g</code></td>
+<td>Minimap2</td>
+<td>~23</td>
+<td>RefSeq archaeal, bacterial, and viral genomes, one genome per
+bacterial/archaeal genus (all viruses retained); distributed as a
+prebuilt index.</td>
+<td>Surveillance / clinical identification of known viruses and
+bacterial genera.</td>
+</tr>
+<tr>
+<td><code>minimap.refseq.abv</code></td>
+<td>Minimap2</td>
+<td>~28 (FASTA)</td>
+<td>Full RefSeq archaeal, bacterial, and viral genomes (all
+representative species). Distributed as an un-indexed FASTA and indexed
+at runtime.</td>
+<td>Adds bacterial species-level resolution, at the cost of a large
+Minimap2 index (≈70 GB, estimated, built at runtime).</td>
+</tr>
+<tr>
+<td><code>minimap.refseq.vi</code></td>
+<td>Minimap2</td>
+<td>~2.2</td>
+<td>RefSeq viral genomes; distributed as a prebuilt index.</td>
+<td>Fast, virus-only first-pass classification; the default assembly
+database for automatic reference selection.</td>
+</tr>
+<tr>
+<td><code>minimap.genbank.vi+refseq.abv.1g</code></td>
+<td>Minimap2</td>
+<td>~38</td>
+<td>GenBank viral sequences combined with the <code>refseq.abv.1g</code>
+set; distributed as a prebuilt index.</td>
+<td>Viral metagenomics.</td>
+</tr>
+<tr>
+<td><code>blastn.refseq.abv</code></td>
+<td>BLASTN</td>
+<td>~7</td>
+<td>BLASTN index of the <code>refseq.abv</code> set (see above).</td>
+<td>As <code>minimap.refseq.abv</code>, for slower but more sensitive
+BLASTN search.</td>
+</tr>
+<tr>
+<td><code>blastn.refseq.abv.1g</code></td>
+<td>BLASTN</td>
+<td>~2.3</td>
+<td>BLASTN index of the <code>refseq.abv.1g</code> set (see above).</td>
+<td>As <code>minimap.refseq.abv.1g</code>, for slower but more sensitive
+BLASTN search.</td>
+</tr>
+<tr>
+<td><code>blastn.refseq.vi</code></td>
+<td>BLASTN</td>
+<td>~0.14</td>
+<td>BLASTN index of RefSeq viral genomes.</td>
+<td>Second-round confirmation of viral reads
+(<code>vi.2round</code>-type strategies).</td>
+</tr>
+<tr>
+<td><code>diamond.nrclust.vi</code></td>
+<td>DIAMOND</td>
+<td>~3.1</td>
+<td>Clustered NCBI nr viral proteins.</td>
+<td>Protein-level detection of divergent viruses
+(<code>vi.chain1</code>).</td>
+</tr>
+<tr>
+<td><code>diamond.uniref.vi</code></td>
+<td>DIAMOND</td>
+<td>~1.6</td>
+<td>UniRef100 viral proteins.</td>
+<td>Protein-level detection of divergent viruses
+(<code>vi.chain2</code>; used in the EMtrace manuscript).</td>
+</tr>
+<tr>
+<td><strong>16S rRNA databases</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>minimap.silva</code></td>
+<td>Minimap2</td>
+<td>~6.3</td>
+<td>SILVA SSU rRNA reference sequences (SSURef).</td>
+<td>SILVA SSU rRNA ribosomal profiling.</td>
+</tr>
+<tr>
+<td><code>minimap.rrnDB.dedup</code></td>
+<td>Minimap2</td>
+<td>~0.4</td>
+<td>rrnDB 5.10 16S rRNA genes, de-duplicated (one representative per
+named species, else genus or family, per cluster of identical sequences;
+78,966 sequences).</td>
+<td>16S profiling with NCBI taxonomy (<code>16S.rrnDB.dedup</code>; the
+16S profile default).</td>
+</tr>
+<tr>
+<td><code>minimap.emu</code></td>
+<td>Minimap2</td>
+<td>~0.24</td>
+<td>Emu&#39;s own 16S database (rrnDB 5.6 + NCBI 16S RefSeq, one sequence
+per species; 49,243 sequences), unchanged.</td>
+<td>16S profiling directly comparable to Emu
+(<code>16S.emu</code>).</td>
+</tr>
+</tbody>
+</table>
+<p><a id="installing-host-and-background-filters"></a></p>
+<h3 id="installing-host-and-background-filters">Installing host and
+background filters</h3>
+<p>Host and background genomes are used to deplete non-target reads
+before annotation. They are provided either as configuration keys (e.g.
+<code>Homo_sapiens</code>) or as direct paths to FASTA files. Multiple
+filters can be chained — for example, the human genome together with one
+or more arthropod vector genomes (e.g.
+<code>Homo_sapiens,Ixodes_scapularis</code> )</p>
+<p><a id="creating-custom-databases-and-filters"></a></p>
+<h3 id="creating-custom-databases-and-filters">Creating custom databases
+and filters</h3>
+<p>Any FASTA file can be used directly as a host filter or as a Minimap2
+annotation reference; EMtrace builds and caches the required index on
+first use. Guidance on assembling custom curated databases will be added
+in a later revision.</p>
+<hr />
+<p><a id="running-emtrace-gui"></a></p>
+<h2 id="running-emtrace-gui">Running EMtrace GUI</h2>
+<p>Start the desktop application in one of two ways:</p>
+<ul>
+<li><strong>Installed app (prebuilt bundle):</strong> double-click
+<strong>EMtrace</strong> in <em>Applications</em> (macOS; or find it
+with Spotlight, ⌘-Space) or <code>EMtrace.exe</code> in the unzipped
+folder (Windows). The first start shows a security warning; see <a href="#opening-the-app">Opening the app</a>.</li>
+<li><strong>From a terminal (installed from source):</strong> activate
+the environment EMtrace was installed into and run:</li>
+</ul>
+<div class="sourceCode" id="cb11"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">emtrace</span> gui</span></code></pre></div>
+<p>The window is organised into three panels: a <strong>step
+list</strong> (left), a <strong>content area</strong> with dashboard,
+configuration, plots, and tables (centre), and a <strong>live
+log</strong> (bottom).</p>
+<p><a id="creating-a-job"></a></p>
+<h3 id="creating-a-job">Creating a job</h3>
+<p>A <strong>job</strong> analyses one sample: one FASTQ file, typically
+one barcode of a sequencing run, or a directory of FASTQ files for
+real-time monitoring. From the top menu select <strong>New Job</strong>,
+select the input, choose a results directory and give the sample name.
+EMtrace creates
+<code>&lt;results directory&gt;/&lt;sample name&gt;/</code> with
+subdirectories for reads, annotation, assembly and reports.</p>
+<p>A <strong>project</strong> is simply a results directory shared by
+several jobs. Depending on the study design, it can hold many samples
+from one sequencing run, or samples from several runs. For example:</p>
+<pre><code>EMtrace-projects/
+└── surveillance-2026/          # project
+    ├── run01_barcode01/        # job (sample)
+    ├── run01_barcode02/
+    └── run02_barcode01/</code></pre>
+<p>Use sample names that are unique within the project, e.g. by
+including the run name, because each job writes to a folder named after
+its sample. The cross-sample summaries
+(<code>emtrace batch-summary</code>, <code>batch-taxa</code>,
+<code>batch-abundance</code>; see <a href="#example-1-a-virus-surveillance-run">Example 1</a>) take the
+project directory and report all samples in it together, across
+runs.</p>
+<p><strong>NOTE</strong>: <em>Reads R2 (paired-end)</em> are only
+provided for reference-based assembly of Illumina reads. For Nanopore
+jobs this can be left empty.</p>
+<p><a id="configuring-settings"></a></p>
+<h3 id="configuring-settings">Configuring settings</h3>
+<p>Pipeline parameters are edited in the configuration panel and saved
+with the job. Every parameter has a sensible default; the groups below
+describe those most often adjusted. The complete set is documented in
+the bundled <code>default.yaml</code>.</p>
+<p><strong>Profile.</strong> The <em>Profile</em> drop-down at the top
+of the panel selects a set of defaults: <em>default (virome)</em> for
+viral metagenomics, or <em>16S</em> for full-length 16S rRNA amplicons
+(the benchmarked 16S settings: <code>16S.rrnDB.dedup</code>, no host
+filtering, 1,200–1,800 bp reads, 1 % tail trim). It is the GUI
+equivalent of the CLI&#39;s <code>--profile</code>. Switching changes only
+the settings the profile defines and keeps all others; picking a
+<code>16S.*</code> annotation preset switches to <em>16S</em>, any other
+preset back to <em>default</em>. The profile is saved in
+<code>config.yaml</code> (<code>profile:</code>) and recorded in each
+job&#39;s <code>job.yaml</code>. When profile settings have been changed by
+hand, a <em>modified</em> note appears next to the drop-down; hover over
+it to see which settings differ from the profile. The run log lists the
+same differences.</p>
+<p><strong>Runtime</strong> — the number of threads and the run
+<em>Mode</em>. In <em>online</em> mode the pipeline may fall back to
+NCBI Entrez to fetch a reference that is not present in the local
+database (a valid contact e-mail is required); in <em>offline</em> mode
+it never accesses the network and aborts if a reference is missing.</p>
+<p><strong>Preprocessing.</strong> Three sub-steps run in sequence —
+adapter trimming → quality filtering → host/background depletion — and
+each is enabled by including its step in the pipeline.</p>
+<ul>
+<li><em>Subsample reads</em> — when enabled, a random subsample of the
+input (a fraction between 0 and 1, or an absolute read count) is drawn
+before any other step. This is useful for rapid pre-flight tests on a
+fraction of a run.</li>
+<li><em>Porechop / Porechop_ABI</em> — adapter trimming.
+<em>Porechop_ABI</em> can infer adapters <em>ab initio</em> from the
+reads (<code>ab_initio</code>, disabled by default); a custom adapter
+file may be supplied instead. Reads containing internal adapters are
+split (disabled by default). The principal thresholds are the end- and
+middle-adapter percent-identity cutoffs (<code>end_threshold</code>,
+<code>middle_threshold</code>).</li>
+<li><em>Chopper</em> — quality and length filtering. The main parameters
+are the minimum mean Phred quality (<code>quality</code>, default 10),
+the minimum read length (<code>minlength</code>), an optional maximum
+length, and head/tail cropping. The end-trimming strategy
+(<code>trim_approach</code>) determines how low-quality read ends are
+handled.</li>
+<li><em>Host and background filtering</em> — depletion of non-target
+reads by alignment against one or more reference genomes, given as
+configuration keys or FASTA paths (comma-separated and applied in turn —
+e.g. a host genome together with a vector genome). Reads are aligned
+with <em>Minimap2</em>, and a read is removed once its alignment score
+reaches the configured minimum (<code>m</code> / <code>s</code>). A
+reusable <code>.mmi</code> index is built and cached alongside each
+genome.</li>
+</ul>
+<p><strong>NOTE:</strong> The default minimum read length
+(<code>chopper.minlength: 400</code>) suits libraries of mostly long
+reads. For libraries with shorter reads, e.g. degraded RNA, short
+amplicons or field samples, it can discard a large share of the data.
+Check the read lengths before a run with <a href="https://bioinf.shenwei.me/seqkit/">SeqKit</a>
+(<code>conda install -c bioconda seqkit</code>):</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">seqkit</span> stats <span class="at">-a</span> <span class="at">-T</span> reads.fastq.gz</span></code></pre></div>
+<p>The <code>Q1</code>, <code>Q2</code> (median) and <code>N50</code>
+columns give the length distribution. If the median read length is near
+or below 400 bp, lower <code>minlength</code> (e.g. to 150, or 100 for
+very short reads).</p>
+<p><strong>Annotation.</strong> Reads are classified against the
+databases configured for round 1 (<code>ann1</code>) and, optionally,
+round 2 (<code>ann2</code>); a named <em>strategy</em>
+(<code>anns</code>, e.g. <code>abv.1g</code>) can set both at once (see
+<a href="#annotation-strategies-and-databases">Annotation strategies and
+databases</a>). Round 1 classifies all reads, while round 2 re-searches
+a chosen partition (viral, phage, or bacterial) against a more sensitive
+database. Per-tool settings control sensitivity and hit filtering:</p>
+<ul>
+<li><em>Minimap2</em> — <code>m</code> (chain-score threshold) and
+<code>s</code> (DP alignment-score threshold, effective only in full-DP
+mode, <code>c: true</code>); the minimizer parameters <code>k</code> /
+<code>w</code> (smaller values such as <code>k = 11, w = 5</code>
+increase sensitivity for divergent viruses); and
+<code>max_target_seqs</code>.</li>
+<li><em>BLASTN</em> — <code>bitscore</code>, <code>evalue</code>, query
+coverage (<code>qcov</code>), and <code>max_target_seqs</code>.</li>
+<li><em>DIAMOND</em> (translated protein search) —
+<code>bitscore</code>, <code>evalue</code>, and the sensitivity
+<code>mode</code> (e.g. <code>very-sensitive</code>). ORFs are first
+detected with <em>orfipy</em> (minimum ORF length <code>min_len</code>,
+genetic-code <code>table</code>, and strand).</li>
+</ul>
+<p>Score and coverage thresholds can also be overridden globally from
+the command line (<code>--min_minimap_score</code>,
+<code>--min_blastn_bits</code>, <code>--min_diamond_bits</code>,
+<code>--min_qcov</code>).</p>
+<p><strong>Assembly</strong> <em>(optional)</em>. Reference-based
+consensus reconstruction. References are supplied as FASTA paths
+(<code>refseqs</code>) or NCBI accessions (<code>refaccs</code>, fetched
+through Entrez in online mode), or selected automatically
+(<code>ref_auto</code>, below). Reads are mapped with <em>Minimap2</em>;
+a consensus is then called and positions below the minimum read depth
+(<code>min_coverage</code>, default 10) are masked as <code>N</code>. In
+the GUI, automatic selection is the <em>Auto-select references</em>
+checkbox; a reference FASTA file or accessions, when given, always take
+precedence.</p>
+<p><strong>Automatic reference selection</strong>
+(<code>assembly.ref_auto</code>, <code>--ref_auto</code>) applies when
+neither <code>refseqs</code> nor <code>refaccs</code> is set. It uses
+two sources of hits:</p>
+<ul>
+<li><strong>primary</strong>: the reads are mapped to the assembly
+database (<code>assembly.database</code>, RefSeq viral genomes by
+default). The hits are saved to
+<code>annotation/assembly_candidates.tsv</code>, which the GUI&#39;s
+<em>Pick from viral hits</em> list also reads;</li>
+<li><strong>secondary</strong>: the annotation hits
+(<code>annot2.tsv</code>, else <code>annot1.tsv</code>).</li>
+</ul>
+<p>In each source, reference accessions are chosen by greedy read cover:
+the accession that aligns best to the reads not yet covered is taken, as
+long as it covers at least <code>min_reads</code> of them. The segments
+of one genome recruit different reads, so each segment gets a reference.
+Strains of one segment share reads, so only the best-aligning strain is
+taken. Up to <code>max_species</code> viruses are kept for
+co-infections.</p>
+<p>A secondary pick replaces a primary pick only if it aligns better, on
+the reads both share, by more than <code>secondary_margin</code>; the
+alignment quality is set by <code>quality_metric</code>, by default
+matched bases per read length. A virus that the primary search misses is
+added from the secondary source. With
+<code>--no-ref_auto_assembly_db</code> or
+<code>--no-ref_auto_annotation</code>, only one source is used.</p>
+<p>Every choice, and every rejected candidate with the reason, is
+written to <code>assembly/ref_selection.tsv</code>.</p>
+<p>Variants are then reported at two independent tiers, because the
+variant table and the consensus sequence have different requirements.
+The <strong>variant table</strong> (<code>vcf.gz</code>) lists every
+allele reaching <code>report_min_af</code> (default 0.2), so
+sub-dominant alleles from co-infections or intra-host variation remain
+visible. The <strong>consensus FASTA</strong> can hold only one base per
+position, so only an allele strictly exceeding <code>min_af</code>
+(default 0.5 — the dominant allele) is written into it. Both tiers
+additionally require <code>min_ac</code> supporting reads (default 5),
+and <code>report_min_af</code> must not exceed <code>min_af</code>. An
+optional <code>vcf_flt</code> expression is ANDed into both filters for
+advanced use; it is empty by default.</p>
+<p><strong>Medaka polishing</strong> (<code>assembly.medaka</code>,
+Nanopore single-end reads only) refines the consensus with
+<em>Medaka</em> after variant calling. It is on by default
+(<code>enabled</code>, CLI <code>--medaka</code> /
+<code>--no-medaka</code>) and is skipped with a warning if Medaka is not
+installed. The model is read from the read headers
+(<code>model: auto</code>, CLI <code>--medaka_model</code>);
+<code>fallback_model</code> is used when the headers carry none (empty =
+Medaka&#39;s default). <code>path</code> points to the Medaka executable or
+its <code>bin/</code> directory when Medaka lives in its own environment
+(empty = on <code>PATH</code>), <code>batch_size</code> sets the
+inference batch size (lower it if GPU memory runs out), and
+<code>cpu</code> forces inference on the CPU. In the GUI these settings
+are under <em>Assembly › Medaka polishing (ONT)</em>.</p>
+<p><strong>EM abundance.</strong> Many reads align ambiguously to
+several taxa. An expectation–maximization algorithm iteratively
+redistributes them to estimate per-taxon relative abundances. The main
+controls are the maximum number of iterations (<code>max_iter</code>),
+the convergence threshold on the change in log-likelihood
+(<code>log_L_threshold</code>), and a temperature parameter
+(<code>temp</code>) that smooths the conversion of alignment scores to
+probabilities. Reads with no species-level assignment can optionally be
+excluded (<code>exclude_no_species</code>).</p>
+<p><strong>Reporting.</strong> Controls the report contents and the
+output tables.</p>
+<ul>
+<li>Annotation and abundance tables can be filtered by minimum query
+coverage (<code>min_qcov</code>) and minimum bitscore
+(<code>min_bitscore</code>), and exported to Excel
+(<code>export_excel</code>).</li>
+<li>Interactive figures are toggled individually: a Sankey diagram
+(<code>sankey</code>), a sunburst chart (<code>sunburst</code>), and a
+stacked-bar chart (<code>stacked_bar</code>); genus- and species-level
+heatmaps are available as PDFs (<code>heatmap_genus</code>,
+<code>heatmap_species</code>).</li>
+<li>Reads may optionally be sorted into a taxonomic directory hierarchy
+(<code>sort_reads</code>); the field used for this is often the &quot;domain&quot;
+but can be set to a proper taxonomic rank or
+<code>auto detect</code></li>
+<li>A companion statistics step records per-stage read counts and length
+distributions, writing them as CSV (or YAML) with optional read-length
+histograms.</li>
+</ul>
+<p>Click <strong>Save Config</strong> from the top menu to write your
+settings to a <code>config.yaml</code> in the job&#39;s directory; when the
+job is opened again, its <code>config.yaml</code> takes priority over
+the bundled defaults.</p>
+<hr />
+<p><a id="annotation-strategies-and-databases"></a></p>
+<h2 id="annotation-strategies-and-databases">Annotation strategies and
+databases</h2>
+<p>The choice of reference database determines both sensitivity and
+runtime, and should be matched to the study design and sample type.
+EMtrace supports two broad use cases.</p>
+<p><a id="virus-surveillance-studies"></a></p>
+<h3 id="virus-surveillance-studies">Virus surveillance studies</h3>
+<p>Targeted detection and characterization of known viruses, e.g. in
+vector surveillance or outbreak response.</p>
+<p><strong>Tissue and vector samples.</strong> These samples have a
+well-defined host or carrier, so background filtering is effective and a
+compact viral reference suffices:</p>
+<ul>
+<li><em>Background filtering:</em> the host/background genome(s) — for
+example <code>Homo_sapiens</code> together with the relevant vector
+genome.</li>
+<li><em>Annotation database:</em> <code>minimap.refseq.abv.1g</code> — a
+compact RefSeq-derived viral index giving fast, specific first-pass
+classification.</li>
+</ul>
+<p><strong>Feces / environmental samples.</strong></p>
+<blockquote>
+<p><em>[Planned]</em> These sample types carry a complex, poorly defined
+background and generally require large general-purpose databases (e.g.
+NCBI <code>nt</code>) for reliable classification. A curated database
+and recommended workflow for fecal and environmental samples are
+scheduled; this section is a placeholder.</p>
+<p><em>Disclaimer:</em> with the compact viral databases alone, false
+negatives are likely due to host/environment eukaryotic mRNA in these
+samples.</p>
+</blockquote>
+<p><a id="virus-metagenomics"></a></p>
+<h3 id="virus-metagenomics">Virus metagenomics</h3>
+<p>Discovery-oriented profiling, including detection of divergent or
+previously uncharacterized viruses.</p>
+<p><strong>Tissue and vector samples.</strong></p>
+<ul>
+<li><em>Background filtering:</em> the host/carrier genome(s), as
+above.</li>
+<li><em>Annotation strategy:</em> <code>--anns vi.chain3</code>
+(recommended). It chains a nucleotide search to a protein search: reads
+are first searched against
+<code>minimap.genbank.vi+refseq.abv.1g</code>, a broad index that adds
+GenBank viral sequences to the RefSeq set, and the reads it leaves
+unclassified are translated into ORFs (<em>orfipy</em>) and searched
+with <em>DIAMOND</em> against viral proteins
+(<code>diamond.uniref.vi</code>), which tolerates greater genetic
+distance.</li>
+</ul>
+<p>Predefined chained strategies (all run in annotation round 1; the
+protein search receives only the reads the nucleotide search left
+unclassified):</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Strategy (<code>--anns</code>)</th>
+<th style="text-align: left;">Nucleotide search</th>
+<th style="text-align: left;">Protein search</th>
+<th style="text-align: left;">Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>vi.chain3</code></td>
+<td style="text-align: left;"><code>minimap.genbank.vi+refseq.abv.1g</code>
+(~38 GB)</td>
+<td style="text-align: left;"><code>diamond.uniref.vi</code></td>
+<td style="text-align: left;">Discovery: broadest nucleotide coverage of
+known viral diversity</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>vi.chain2</code></td>
+<td style="text-align: left;"><code>minimap.refseq.abv.1g</code> (~23
+GB)</td>
+<td style="text-align: left;"><code>diamond.uniref.vi</code></td>
+<td style="text-align: left;">Divergent viruses with a smaller index;
+benchmarked in the EMtrace manuscript</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>vi.chain1</code></td>
+<td style="text-align: left;"><code>minimap.refseq.abv</code> (full
+RefSeq, indexed at runtime)</td>
+<td style="text-align: left;"><code>diamond.nrclust.vi</code></td>
+<td style="text-align: left;">Protein search against clustered NCBI nr
+viral proteins</td>
+</tr>
+</tbody>
+</table>
+<br>
+
+<p>The protein search defaults, DIAMOND bitscore ≥ 80 and ORFs ≥ 90 nt
+(<code>annotation.diamond_blastp.bitscore</code>,
+<code>annotation.orfipy.min_len</code>), are the settings benchmarked
+with <code>vi.chain2</code> in the EMtrace manuscript. Nanopore read
+errors break reads into short ORFs, whose hits score low, so stricter
+values discard most genuine protein hits. The low threshold also admits
+more spurious hits: treat a species supported only by protein hits as
+tentative, and confirm it with a nucleotide hit, an assembly or a second
+method.</p>
+<p><strong>Feces / environmental samples.</strong></p>
+<blockquote>
+<p><em>[Planned]</em> As above, robust analysis of fecal and
+environmental samples requires large general-purpose databases. This
+section is a placeholder.</p>
+<p><em>Disclaimer:</em> proper analysis most likely requires large
+databases such as NCBI <code>nt</code>.</p>
+</blockquote>
+<hr />
+<p><a id="example-1-a-virus-surveillance-run"></a></p>
+<h2 id="example-1-a-virus-surveillance-run">Example 1: A virus
+surveillance run</h2>
+<p>This example illustrates a complete surveillance analysis of a single
+barcode.</p>
+<p><strong>Sample data.</strong> A basecalled, demultiplexed FASTQ file
+from a MinION run, e.g. <code>barcode01.fastq.gz</code>.</p>
+<p><strong>Pipeline settings.</strong></p>
+<ul>
+<li>Steps: <code>main</code> (preprocessing → host filtering →
+annotation → EM abundance → reporting → packaging).</li>
+<li>Background filter: <code>Homo_sapiens</code>.</li>
+<li>Annotation database (round 1):
+<code>minimap.refseq.abv.1g</code>.</li>
+</ul>
+<p><strong>Running (CLI).</strong></p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">emtrace</span> run <span class="dt">\</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--reads</span>   barcode01.fastq.gz <span class="dt">\</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--sample</span>  barcode01 <span class="dt">\</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">--res</span>     ./EMtrace-projects/run01 <span class="dt">\</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">--pipe</span>    main <span class="dt">\</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">--bgfilter</span> Homo_sapiens <span class="dt">\</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">--ann1</span>    minimap.refseq.abv.1g <span class="dt">\</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">--numth</span>   8 <span class="dt">\</span></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">-v</span></span></code></pre></div>
+<p><strong>Result description.</strong></p>
+<p>The run produces, under
+<code>EMtrace-projects/run01/barcode01/</code>:</p>
+<ul>
+<li><code>reads/</code> — preprocessed and partitioned read sets (viral,
+phage, bacterial, and unannotated bins).</li>
+<li><code>annotation/</code> — raw per-read annotation tables (detailed
+below).</li>
+<li><code>results/reports/</code> and <code>results/plots/</code> —
+tables, figures, and the HTML report (detailed below).</li>
+</ul>
+<h4 id="annotation-tables-annotation">Annotation tables
+(<code>annotation/</code>)</h4>
+<p>The annotation step writes tab-delimited tables of per-read hits.
+<code>annot1.tsv</code> holds all hits of the annotation; most analyses
+use this single annotation round. Each search also writes its own table,
+<code>annot1.&lt;database&gt;.tsv</code> (for example
+<code>annot1.minimap.refseq.abv.1g.tsv</code>). In a chained strategy
+such as <code>vi.chain2</code> (Minimap2, then DIAMOND), this keeps the
+results of the first search even if a later search fails. An optional
+second annotation round (<code>--ann2</code>) writes the same files with
+the prefix <code>annot2</code>. All tables share the same column
+schema:</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>search</code></td>
+<td>Search program (Minimap2, BLASTN, DIAMOND blastp/blastx).</td>
+</tr>
+<tr>
+<td><code>db</code></td>
+<td>Reference database (configuration key).</td>
+</tr>
+<tr>
+<td><code>qseqid</code></td>
+<td>Query (read) identifier.</td>
+</tr>
+<tr>
+<td><code>orf</code></td>
+<td>ORF identifier for protein searches; <code>NA</code> for nucleotide
+searches.</td>
+</tr>
+<tr>
+<td><code>qseqlen</code></td>
+<td>Full read length (bp).</td>
+</tr>
+<tr>
+<td><code>sseqid</code></td>
+<td>Subject (reference) sequence identifier.</td>
+</tr>
+<tr>
+<td><code>bitscore</code></td>
+<td>Alignment bitscore.</td>
+</tr>
+<tr>
+<td><code>evalue</code></td>
+<td>Expectation value.</td>
+</tr>
+<tr>
+<td><code>alen</code></td>
+<td>Alignment length (bp).</td>
+</tr>
+<tr>
+<td><code>pident</code></td>
+<td>Percent identity.</td>
+</tr>
+<tr>
+<td><code>qlen</code></td>
+<td>Aligned query-region length (bp).</td>
+</tr>
+<tr>
+<td><code>qcov</code></td>
+<td>Query coverage (fraction, 0–1).</td>
+</tr>
+<tr>
+<td><code>slen</code></td>
+<td>Subject sequence length (bp).</td>
+</tr>
+<tr>
+<td><code>scov</code></td>
+<td>Subject coverage (fraction, 0–1).</td>
+</tr>
+<tr>
+<td><code>staxid</code></td>
+<td>Subject taxonomy ID (NCBI or SILVA).</td>
+</tr>
+<tr>
+<td><code>sname</code></td>
+<td>Subject name / title.</td>
+</tr>
+<tr>
+<td><code>division</code></td>
+<td>NCBI division (e.g. <em>Viruses</em>, <em>Bacteria</em>) or, for
+SILVA, the domain.</td>
+</tr>
+<tr>
+<td><code>bphage</code></td>
+<td>Bacteriophage flag (<code>yes</code>/<code>no</code>); assigned for
+NCBI taxonomy only.</td>
+</tr>
+</tbody>
+</table>
+<p>The same schema is used by <code>assembly_candidates.tsv</code>, a
+viral-only hit list written for the assembly step.</p>
+<h4 id="reports-and-figures-resultsreports-resultsplots">Reports and
+figures (<code>results/reports/</code>,
+<code>results/plots/</code>)</h4>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>reports/abund_table.tsv</code></td>
+<td>Per-taxon abundance table: read counts, EM probabilities, and
+taxonomic lineage.</td>
+</tr>
+<tr>
+<td><code>reports/annot_table.tsv</code></td>
+<td>Deduplicated, taxonomy-linked annotation table (nucleotide and
+protein hits merged) used for reporting.</td>
+</tr>
+<tr>
+<td><code>reports/stats_fastq.csv</code></td>
+<td>Per-stage read statistics: read count, min/max/median/mean length,
+total bp, and N50.</td>
+</tr>
+<tr>
+<td><code>reports/stats_div.csv</code></td>
+<td>Read counts per taxonomic division.</td>
+</tr>
+<tr>
+<td><code>reports/stats_report.html</code></td>
+<td>Interactive HTML summary report (embeds the figures below).</td>
+</tr>
+<tr>
+<td><code>EM.taxid_prob.tsv</code></td>
+<td>Final EM abundance probability per taxon (written in
+<code>results/</code>).</td>
+</tr>
+<tr>
+<td><code>EM.taxid_prob.byiter.tsv</code></td>
+<td>EM probability per taxon at each iteration (convergence trace).</td>
+</tr>
+<tr>
+<td><code>plots/stacked_bar.png</code>, <code>.html</code></td>
+<td>Taxonomic composition as a stacked bar chart.</td>
+</tr>
+<tr>
+<td><code>plots/sunburst.html</code></td>
+<td>Hierarchical taxonomic composition (interactive sunburst).</td>
+</tr>
+<tr>
+<td><code>plots/sankey.html</code></td>
+<td>Taxonomic read flow (interactive Sankey diagram).</td>
+</tr>
+<tr>
+<td><code>plots/qc/read_lengths.png</code></td>
+<td>Read-length distribution histogram.</td>
+</tr>
+</tbody>
+</table>
+<p>Annotation and abundance tables are additionally exported as
+<code>.xlsx</code> when <code>export_excel</code> is enabled.</p>
+<p>Genus- and species-level heatmaps (<code>plots/heatmap_*.pdf</code>)
+are produced when enabled in the reporting settings.</p>
+<p><strong>Cross-sample summaries.</strong></p>
+<p>Summaries can be computed over one or several samples or runs:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">emtrace</span> batch-summary ./EMtrace-projects/run01 <span class="at">-o</span> run01.summary.tsv</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="ex">emtrace</span> batch-taxa    ./EMtrace-projects/run01 <span class="at">--target</span> vi <span class="at">-o</span> run01.viral.tsv</span></code></pre></div>
+<br>
+`batch-summary` writes one row per sample, tracking read flow through the
+pipeline:
+
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Sample</code></td>
+<td>Sample name.</td>
+</tr>
+<tr>
+<td><code>reads</code></td>
+<td>Input read count.</td>
+</tr>
+<tr>
+<td><code>reads.porechop</code></td>
+<td>Reads passing adapter trimming.</td>
+</tr>
+<tr>
+<td><code>reads.chopped</code></td>
+<td>Reads passing quality/length filtering.</td>
+</tr>
+<tr>
+<td><code>reads.hostflt</code></td>
+<td>Reads remaining after host/background depletion.</td>
+</tr>
+<tr>
+<td><code>n50</code></td>
+<td>Read-length N50 of the input.</td>
+</tr>
+<tr>
+<td><code>reads.{division}</code></td>
+<td>Reads assigned to each taxonomic division (one column per division
+observed, e.g. <code>reads.Viruses</code>,
+<code>reads.Bacteria</code>).</td>
+</tr>
+<tr>
+<td><code>reads.mapped</code></td>
+<td>Total annotated (classified) reads.</td>
+</tr>
+<tr>
+<td><code>reads.unmapped</code></td>
+<td>Reads with no annotation.</td>
+</tr>
+</tbody>
+</table>
+<br>
+`batch-taxa` writes one row per taxon per sample, filtered by `--target`
+(`vi` viruses, `ba` bacteria/archaea, `ph` phages):
+
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Sample</code></td>
+<td>Sample name.</td>
+</tr>
+<tr>
+<td><code>taxid</code></td>
+<td>NCBI/SILVA taxonomy ID.</td>
+</tr>
+<tr>
+<td><code>readn</code></td>
+<td>Reads assigned to the taxon: EM-adjusted counts
+(<code>readn_em</code>, rounded to whole reads), as benchmarked; raw
+read counts where <code>readn_em</code> is not available.</td>
+</tr>
+<tr>
+<td><code>prob</code></td>
+<td>EM-estimated relative abundance.</td>
+</tr>
+<tr>
+<td><code>organism</code></td>
+<td>Scientific name.</td>
+</tr>
+<tr>
+<td><code>species</code></td>
+<td>Species-rank lineage name.</td>
+</tr>
+<tr>
+<td><code>genus</code></td>
+<td>Genus.</td>
+</tr>
+<tr>
+<td><code>family</code></td>
+<td>Family.</td>
+</tr>
+<tr>
+<td><code>order</code></td>
+<td>Order.</td>
+</tr>
+<tr>
+<td><code>class</code></td>
+<td>Class.</td>
+</tr>
+<tr>
+<td><code>division</code></td>
+<td>NCBI division (used by the <code>--target</code> filter).</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><a id="running-emtrace-cli"></a></p>
+<h2 id="running-emtrace-cli">Running EMtrace (CLI)</h2>
+<p>The full pipeline is run with <code>emtrace run</code>. The most
+frequently used options are:</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-1, --reads</code></td>
+<td>Input FASTQ file (plain or gzipped).</td>
+</tr>
+<tr>
+<td><code>-s, --sample</code></td>
+<td>Sample name / label.</td>
+</tr>
+<tr>
+<td><code>-r, --res</code></td>
+<td>Root results directory.</td>
+</tr>
+<tr>
+<td><code>-p, --pipe</code></td>
+<td>Workflow name (<code>main</code>, <code>annotate</code>,
+<code>report</code>, <code>realtime</code>) or comma-separated steps
+(<code>pore,chop,flt,ann,em,ass,rep,plot,pack,clean</code>).</td>
+</tr>
+<tr>
+<td><code>--bgfilter</code></td>
+<td>Host/background genome key(s) or FASTA path(s).</td>
+</tr>
+<tr>
+<td><code>--ann1</code> / <code>--ann2</code></td>
+<td>Annotation database(s) for round 1 / <code>target:db</code> pairs
+for round 2.</td>
+</tr>
+<tr>
+<td><code>--anns</code></td>
+<td>Named annotation strategy (overrides
+<code>--ann1</code>/<code>--ann2</code>).</td>
+</tr>
+<tr>
+<td><code>--refaccs</code> / <code>--refseqs</code></td>
+<td>References for reference-based assembly.</td>
+</tr>
+<tr>
+<td><code>--ref_auto</code></td>
+<td>Select assembly references automatically (see
+<em>Assembly</em>).</td>
+</tr>
+<tr>
+<td><code>--medaka</code> / <code>--no-medaka</code></td>
+<td>Polish the consensus with <em>Medaka</em> (on by default);
+<code>--medaka_model</code> sets the model (<code>auto</code> = from the
+read headers).</td>
+</tr>
+<tr>
+<td><code>-t, --numth</code></td>
+<td>Number of threads.</td>
+</tr>
+<tr>
+<td><code>--config</code></td>
+<td>Configuration YAML; replaces the bundled defaults.</td>
+</tr>
+<tr>
+<td><code>--profile</code></td>
+<td>Settings profile: <code>default</code> (alias <code>virome</code>)
+or <code>16S</code>, overlaid on the bundled defaults (see
+<em>Configuring settings</em>). Cannot be combined with
+<code>--config</code>.</td>
+</tr>
+<tr>
+<td><code>-v</code></td>
+<td>Increase verbosity (<code>-v</code> info, <code>-vv</code>
+debug).</td>
+</tr>
+</tbody>
+</table>
+<br>
+Selected steps may be run in isolation — for example, to regenerate reports from
+an existing annotation without repeating the search:
+
+<div class="sourceCode" id="cb16"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">emtrace</span> run <span class="at">--reads</span> barcode01.fastq.gz <span class="at">--sample</span> barcode01 <span class="dt">\</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--res</span> ./EMtrace-projects/run01 <span class="at">--pipe</span> rep,pack</span></code></pre></div>
+<p><strong>Pre-building host-filter indices.</strong> When background
+filtering with <em>Minimap2</em>
+(<code>bgfilter.minimap.save_mmi_index: true</code>), the host genome is
+indexed to a <code>.mmi</code> file on first use and reused thereafter.
+For a large collection run as many parallel jobs (e.g. an HPC array
+job), build the indices once, before launching the jobs:</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="ex">emtrace</span> databases <span class="at">--build-index</span> hostdbs <span class="at">--config</span> emtrace.config.yaml</span></code></pre></div>
+<p>This downloads each configured host genome (if not already present),
+concatenates it, and builds the <code>.mmi</code> index at the exact
+path the runs expect. Pass a single host key (e.g.
+<code>--build-index Homo_sapiens</code>) to build just one, and
+<code>--force</code> to rebuild an existing index.</p>
+<p>Without this step the first jobs build the index themselves. This is
+safe: an index is written under a temporary name and only appears once
+complete, and concurrent jobs wait for one build and then reuse it. But
+every waiting job holds its slot (and memory) meanwhile, and on file
+systems without file locking (some network file systems) each job builds
+its own copy.</p>
+<p>Other subcommands:</p>
+<ul>
+<li><code>emtrace databases --list</code> / <code>--install KEY</code> —
+list configured databases and their install status, and download and
+install a database.</li>
+<li><code>emtrace databases --build-index KEY</code> — pre-build the
+<em>Minimap2</em> <code>.mmi</code> index for one host filter
+(<code>KEY</code>) or for all configured host filters
+(<code>--build-index hostdbs</code>); see <em>Pre-building host-filter
+indices</em> above.</li>
+<li><code>emtrace batch-summary</code> / <code>batch-taxa</code> —
+cross-sample QC and taxonomic summaries.</li>
+<li><code>emtrace batch-abundance RESDIR -o OUTDIR</code> — cross-sample
+OTU/feature tables (rows = species, columns = samples), one file per
+division group (bacteria, bacteriophages, viruses,
+invertebrates_parasites, invertebrates_other). Each table has
+<code>species</code> + <code>taxid</code> as the first two columns and a
+<code>taxpath</code> lineage as the last. Options:
+<code>--value readn|prob|both</code> (read counts and/or the EM
+assignment probability; default <code>both</code>). Read counts are the
+EM-adjusted counts (<code>readn_em</code>, rounded to whole reads), as
+benchmarked; raw <code>readn</code> is used where <code>readn_em</code>
+is not available. <code>--xlsx</code> to also write a single styled
+Excel workbook of the read-count tables (one sheet per division, header
+rotated, compact sample columns); <code>--config FILE</code> to override
+the invertebrate parasite genus allowlist via
+<code>report.parasite_genera</code>.</li>
+<li><code>emtrace gui</code> — launch the desktop interface.</li>
+</ul>
+<hr />
+<p><a id="real-time-monitoring"></a></p>
+<h2 id="real-time-monitoring">Real-time monitoring</h2>
+<blockquote>
+<p><em>[Experimental]</em> Real-time mode is implemented but <strong>not
+yet validated on live sequencing runs</strong>; treat results as
+preliminary and verify with a standard (post-run) analysis.</p>
+</blockquote>
+<p><code>emtrace watch</code> monitors a directory for new FASTQ files
+(e.g. MinKNOW output) and processes each batch through preprocessing,
+host filtering, annotation, and EM abundance estimation, updating a
+running abundance table. A final report is generated when monitoring is
+stopped (Ctrl+C).</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="ex">emtrace</span> watch <span class="dt">\</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--dir</span>   /path/to/minknow/output <span class="dt">\</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--sample</span> run01 <span class="dt">\</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">--hostgen</span> Homo_sapiens <span class="dt">\</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">--ann1</span>   minimap.refseq.abv.1g <span class="dt">\</span></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">--report</span> <span class="dt">\</span></span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">-v</span></span></code></pre></div>
+<p>Settings come from <code>--config</code> or <code>--profile</code>
+(e.g. <code>--profile 16S</code> for 16S amplicons), as for
+<code>emtrace run</code>. After each batch the console prints the top
+taxa with their names.</p>
+<p>Files may be written, copied, or moved/renamed into the watched
+directory (e.g. a Finder drag, <code>mv</code>, or <code>rsync</code>,
+which writes a temporary file and renames it). A file counts once it has
+stopped growing for <code>--debounce</code> seconds. The directory is
+also rescanned every 30 s, which catches files whose change
+notifications were missed (e.g. on network drives). A file that was
+already processed is not processed again after a rename. FASTQ files
+already in the directory when monitoring starts are ignored unless
+<code>--scan-existing</code> is given.</p>
+<p><strong>In the GUI</strong>, the <strong>Realtime</strong> tab runs
+the same monitor with the settings of the job that is open. Set the
+<em>Watch directory</em> and <em>Output directory</em>, the <em>Batch
+size</em> (files per batch) and <em>Debounce</em> (seconds), then click
+<strong>▶ Start Watching</strong>; <strong>■ Stop</strong> ends
+monitoring and writes the final report. The tab shows the current batch,
+total reads, files and taxa detected, and a <em>Top taxa</em> list by EM
+abundance, with species names (hover for the taxid).</p>
+<hr />
+<p><a id="citing-emtrace"></a></p>
+<h2 id="citing-emtrace">Citing EMtrace</h2>
+<p>Article in preparation.</p>
+<hr />
+<p><a id="contact"></a></p>
+<h2 id="contact">Contact</h2>
+<p>Email: <a href="mailto:emtrace-support@helsinki.fi">emtrace-support@helsinki.fi</a></p>
+</body>
+</html>

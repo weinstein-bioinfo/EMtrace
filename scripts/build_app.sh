@@ -82,6 +82,14 @@ if [ ! -f "$ICON" ]; then
     echo ""
 fi
 
+# User Guide HTML (Help > User Guide); without pandoc the committed copy ships
+if command -v pandoc >/dev/null 2>&1; then
+    bash scripts/build_userguide.sh
+else
+    echo "pandoc not found — shipping the committed docs/UserGuide.v1.0.html"
+fi
+echo ""
+
 # ------------------------------------------------------------------
 # Build
 # ------------------------------------------------------------------

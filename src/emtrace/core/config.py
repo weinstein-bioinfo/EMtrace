@@ -472,19 +472,21 @@ class TaxonomyConfig(BaseModel):
     resolves in NCBI taxonomy.
     """
 
-    NCBI: TaxonomySourceConfig = TaxonomySourceConfig(
+    # Factories, not instances: an instance would expand $EMTRACE_DB_DIR once,
+    # at import, before the user config has set it.
+    NCBI: TaxonomySourceConfig = Field(default_factory=lambda: TaxonomySourceConfig(
         db="$EMTRACE_DB_DIR/taxonomy/ncbi/taxonomy.db",
         toptaxrank="division",
         name="NCBI taxonomy",
         url="ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz",
-    )
-    SILVA: TaxonomySourceConfig = TaxonomySourceConfig(
+    ))
+    SILVA: TaxonomySourceConfig = Field(default_factory=lambda: TaxonomySourceConfig(
         db="$EMTRACE_DB_DIR/taxonomy/silva/taxonomy.db",
         toptaxrank="domain",
         name="SILVA taxonomy",
         url="https://ftp.arb-silva.de/release_144/Exports/taxonomy/taxmap_slv_ssu_ref144.txt.gz",
         tax_slv_url="https://ftp.arb-silva.de/release_144/Exports/taxonomy/tax_slv_ssu_144.txt.gz",
-    )
+    ))
 
     def source(self, tax_type: TaxonomyType) -> TaxonomySourceConfig:
         """Return the taxonomy source for *tax_type*."""
@@ -1063,6 +1065,11 @@ class EMtraceConfig(BaseModel):
         # (shell env var precedence is enforced in _apply_db_dir via setdefault).
         user_cfg = load_user_config()
         db_dir: Optional[str] = raw.get("db_dir") or user_cfg.get("db_dir") or None
+        # Export it before any sub-model is built: taxonomy paths expand
+        # $EMTRACE_DB_DIR when constructed, so leaving this to _apply_db_dir
+        # kept a literal "$EMTRACE_DB_DIR" on the first load of a fresh process.
+        if db_dir:
+            os.environ.setdefault("EMTRACE_DB_DIR", _expand(db_dir))
 
         # Build preprocess config (bgfilter nested under preprocess; falls back
         # to top-level "bgfilter:" for backwards-compatible YAML files)
