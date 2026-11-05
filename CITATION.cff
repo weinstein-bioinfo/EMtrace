@@ -1,0 +1,56 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "EMtrace"
+abstract: >-
+  Offline, real-time nanopore metagenomics: read classification, EM abundance
+  estimation and reference-based consensus assembly, with command-line, graphical
+  and real-time (watch) interfaces.
+authors:
+  - family-names: Weinstein
+    given-names: Ilya
+    affiliation: "Department of Veterinary Biosciences, University of Helsinki; Department of Virology, University of Helsinki"
+    orcid: "https://orcid.org/0000-0001-5988-0901"
+  - family-names: Smura
+    given-names: Teemu
+    affiliation: "Department of Virology, University of Helsinki; Department of Virology and Immunology, University of Helsinki and Helsinki University Hospital"
+    orcid: "https://orcid.org/0000-0002-9187-3151"
+  - family-names: Leppanen
+    given-names: Onnia
+    affiliation: "Department of Veterinary Biosciences, University of Helsinki"
+  - family-names: Krupińska
+    given-names: Martyna
+    affiliation: "Department of Tropical Parasitology, Institute of Maritime and Tropical Medicine, Medical University of Gdańsk"
+    orcid: "https://orcid.org/0000-0002-4447-9143"
+  - family-names: Vauhkonen
+    given-names: Hanna
+    affiliation: "Department of Virology, University of Helsinki"
+    orcid: "https://orcid.org/0000-0002-5708-6680"
+  - family-names: Sironen
+    given-names: Tarja
+    affiliation: "Department of Veterinary Biosciences, University of Helsinki; Department of Virology, University of Helsinki"
+    orcid: "https://orcid.org/0000-0002-2344-2755"
+  - family-names: Grzybek
+    given-names: Maciej
+    affiliation: "Department of Tropical Parasitology, Institute of Maritime and Tropical Medicine, Medical University of Gdańsk"
+    orcid: "https://orcid.org/0000-0002-8780-0304"
+  - family-names: Vapalahti
+    given-names: Olli
+    affiliation: "Department of Veterinary Biosciences, University of Helsinki; Department of Virology, University of Helsinki; Department of Virology and Immunology, University of Helsinki and Helsinki University Hospital"
+    orcid: "https://orcid.org/0000-0003-2270-6824"
+  - family-names: Kant
+    given-names: Ravi
+    affiliation: "Department of Veterinary Biosciences, University of Helsinki; Department of Virology, University of Helsinki; Department of Tropical Parasitology, Institute of Maritime and Tropical Medicine, Medical University of Gdańsk"
+    orcid: "https://orcid.org/0000-0003-3878-9775"
+version: 1.0.2
+date-released: 2026-11-09
+license: GPL-3.0-or-later
+repository-code: "https://github.com/weinstein-bioinfo/EMtrace"
+keywords:
+  - nanopore
+  - metagenomics
+  - virome
+  - 16S rRNA
+  - real-time sequencing
+  - expectation-maximization
+  - consensus assembly
