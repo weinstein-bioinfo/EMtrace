@@ -21,7 +21,7 @@ wheels/
 *.egg
 
 # Virtual environments
-.venv/
+.venv*/
 venv/
 ENV/
 env/
@@ -51,3 +51,6 @@ wrkdir/
 data/
 *.log
 *.tmp
+
+# Local scratch (commit messages, notes)
+work/

@@ -51,14 +51,18 @@ From source (Python ≥ 3.10), with the external tools from Bioconda:
 conda create -n emtrace -c conda-forge -c bioconda \
     minimap2 chopper porechop_abi diamond orfipy samtools bcftools
 conda activate emtrace
-pip install "git+https://github.com/weinstein-bioinfo/EMtrace.git@v1.0.1"
+pip install "git+https://github.com/weinstein-bioinfo/EMtrace.git@v1.0.2"
 emtrace --help
 ```
 
-Self-contained macOS and Windows bundles are attached to each
+Self-contained macOS bundles (Apple silicon and Intel) are attached to each
 [release](https://github.com/weinstein-bioinfo/EMtrace/releases). They are not
-signed, so the operating system warns on first launch; see
+signed, so macOS warns on first launch; see
 [Opening the app](docs/UserGuide.v1.0.md#opening-the-app).
+
+Windows is not supported in this version; Windows support is planned for a future
+release. The installation from source may work under WSL2 (Windows Subsystem for
+Linux), but this is untested.
 
 Databases, optional tools (BLAST+, Medaka) and the GUI extra are described in
 the [User Guide](docs/UserGuide.v1.0.md#installing-emtrace).

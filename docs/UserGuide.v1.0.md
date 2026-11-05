@@ -1,15 +1,15 @@
 # EMtrace User Guide
 
-*Running EMtrace on a macOS or Windows computer.*
+*Running EMtrace on macOS or Linux.*
 
-**Version:** 1.0 · **Last updated:** 2026-10-12
+**Version:** 1.0 · **Last updated:** 2026-11-05
 
 ## Table of Contents
 
 - [About EMtrace](#about-emtrace)
 - [Installing EMtrace](#installing-emtrace)
   - [Setting up directories](#setting-up-directories)
-  - [Using a prebuilt bundle (macOS/Windows)](#using-a-prebuilt-bundle-macoswindows)
+  - [Using a prebuilt bundle (macOS)](#using-a-prebuilt-bundle-macos)
     - [Opening the app](#opening-the-app)
   - [Building from source](#building-from-source)
   - [Installing dependencies](#installing-dependencies)
@@ -103,25 +103,28 @@ subsequent runs.
 An `EMTRACE_DB_DIR` value set in the shell environment takes precedence over
 the stored setting.
 
-<a id="using-a-prebuilt-bundle-macoswindows"></a>
-### Using a prebuilt bundle (macOS/Windows)
+<a id="using-a-prebuilt-bundle-macos"></a>
+### Using a prebuilt bundle (macOS)
 
-Self-contained macOS (`.app` in a `.dmg`) and Windows (`.zip`) bundles are
-attached to each [GitHub release](https://github.com/weinstein-bioinfo/EMtrace/releases).
+Self-contained macOS bundles (`.app` in a `.dmg`) for Apple silicon (`arm64`) and
+Intel (`x86_64`) Macs are attached to each
+[GitHub release](https://github.com/weinstein-bioinfo/EMtrace/releases).
 They do not need a separate Python installation.
+
+Windows is not supported in this version; Windows support is planned for a future
+release. The [installation from source](#building-from-source) may work on Windows
+under WSL2 (Windows Subsystem for Linux), but this is untested.
 
 <a id="opening-the-app"></a>
 #### Opening the app
 
-The bundles are not signed with an Apple or Microsoft certificate, so the
-operating system warns the first time they are opened. This is expected.
+The bundles are not signed with an Apple certificate, so macOS warns the
+first time they are opened. This is expected.
 
 | Platform | What you see | What to do |
 |:--|:--|:--|
 | macOS 15 and later | "Apple could not verify 'EMtrace' is free of malware…" | Close the dialog. Open **System Settings → Privacy & Security**, scroll down to the message about EMtrace and click **Open Anyway**, then confirm. |
 | macOS 14 and earlier | The same warning | Control-click (right-click) the app, choose **Open**, then **Open** again. |
-| Windows | SmartScreen: "Windows protected your PC" | Click **More info**, then **Run anyway**. |
-| Windows | Antivirus software quarantines `EMtrace.exe` | Bundled Python applications are a common false positive. Restore the file and add an exclusion, or install from source (below). |
 
 <br>
 
@@ -134,8 +137,7 @@ xattr -dr com.apple.quarantine /Applications/EMtrace.app
 Each release lists SHA-256 checksums of the bundles. To check a download:
 
 ```bash
-shasum -a 256 EMtrace-macos-arm64-1.0.2.dmg                       # macOS
-Get-FileHash EMtrace-win-x86_64-1.0.2.zip -Algorithm SHA256       # Windows PowerShell
+shasum -a 256 EMtrace-macos-arm64-1.0.2.dmg
 ```
 
 <a id="building-from-source"></a>
@@ -148,7 +150,7 @@ install it into a virtual environment:
 git clone https://github.com/weinstein-bioinfo/EMtrace.git
 cd EMtrace
 python3 -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
+source .venv/bin/activate
 pip install -e .                   # editable install
 ```
 
@@ -278,8 +280,8 @@ on assembling custom curated databases will be added in a later revision.
 Start the desktop application in one of two ways:
 
 - **Installed app (prebuilt bundle):** double-click **EMtrace** in
-  *Applications* (macOS; or find it with Spotlight, ⌘-Space) or `EMtrace.exe`
-  in the unzipped folder (Windows). The first start shows a security warning;
+  *Applications* (or find it with Spotlight, ⌘-Space). The first start shows a
+  security warning;
   see [Opening the app](#opening-the-app).
 - **From a terminal (installed from source):** activate the environment
   EMtrace was installed into and run:

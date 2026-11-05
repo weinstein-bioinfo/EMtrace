@@ -134,17 +134,17 @@ blockquote { color: #9198a1; }
 </head>
 <body>
 <h1 id="emtrace-user-guide">EMtrace User Guide</h1>
-<p><em>Running EMtrace on a macOS or Windows computer.</em></p>
+<p><em>Running EMtrace on macOS or Linux.</em></p>
 <p><strong>Version:</strong> 1.0 · <strong>Last updated:</strong>
-2026-10-12</p>
+2026-11-05</p>
 <h2 id="table-of-contents">Table of Contents</h2>
 <ul>
 <li><a href="#about-emtrace">About EMtrace</a></li>
 <li><a href="#installing-emtrace">Installing EMtrace</a>
 <ul>
 <li><a href="#setting-up-directories">Setting up directories</a></li>
-<li><a href="#using-a-prebuilt-bundle-macoswindows">Using a prebuilt
-bundle (macOS/Windows)</a>
+<li><a href="#using-a-prebuilt-bundle-macos">Using a prebuilt bundle
+(macOS)</a>
 <ul>
 <li><a href="#opening-the-app">Opening the app</a></li>
 </ul></li>
@@ -241,17 +241,21 @@ root. The selection is saved to a per-user configuration file and
 applied automatically on all subsequent runs.<br />
 An <code>EMTRACE_DB_DIR</code> value set in the shell environment takes
 precedence over the stored setting.</p>
-<p><a id="using-a-prebuilt-bundle-macoswindows"></a></p>
-<h3 id="using-a-prebuilt-bundle-macoswindows">Using a prebuilt bundle
-(macOS/Windows)</h3>
-<p>Self-contained macOS (<code>.app</code> in a <code>.dmg</code>) and
-Windows (<code>.zip</code>) bundles are attached to each <a href="https://github.com/weinstein-bioinfo/EMtrace/releases">GitHub
+<p><a id="using-a-prebuilt-bundle-macos"></a></p>
+<h3 id="using-a-prebuilt-bundle-macos">Using a prebuilt bundle
+(macOS)</h3>
+<p>Self-contained macOS bundles (<code>.app</code> in a
+<code>.dmg</code>) for Apple silicon (<code>arm64</code>) and Intel
+(<code>x86_64</code>) Macs are attached to each <a href="https://github.com/weinstein-bioinfo/EMtrace/releases">GitHub
 release</a>. They do not need a separate Python installation.</p>
+<p>Windows is not supported in this version; Windows support is planned
+for a future release. The <a href="#building-from-source">installation
+from source</a> may work on Windows under WSL2 (Windows Subsystem for
+Linux), but this is untested.</p>
 <p><a id="opening-the-app"></a></p>
 <h4 id="opening-the-app">Opening the app</h4>
-<p>The bundles are not signed with an Apple or Microsoft certificate, so
-the operating system warns the first time they are opened. This is
-expected.</p>
+<p>The bundles are not signed with an Apple certificate, so macOS warns
+the first time they are opened. This is expected.</p>
 <table>
 <thead>
 <tr>
@@ -275,21 +279,6 @@ about EMtrace and click <strong>Open Anyway</strong>, then confirm.</td>
 <td style="text-align: left;">Control-click (right-click) the app,
 choose <strong>Open</strong>, then <strong>Open</strong> again.</td>
 </tr>
-<tr>
-<td style="text-align: left;">Windows</td>
-<td style="text-align: left;">SmartScreen: &quot;Windows protected your
-PC&quot;</td>
-<td style="text-align: left;">Click <strong>More info</strong>, then
-<strong>Run anyway</strong>.</td>
-</tr>
-<tr>
-<td style="text-align: left;">Windows</td>
-<td style="text-align: left;">Antivirus software quarantines
-<code>EMtrace.exe</code></td>
-<td style="text-align: left;">Bundled Python applications are a common
-false positive. Restore the file and add an exclusion, or install from
-source (below).</td>
-</tr>
 </tbody>
 </table>
 <br>
@@ -299,8 +288,7 @@ terminal:</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">xattr</span> <span class="at">-dr</span> com.apple.quarantine /Applications/EMtrace.app</span></code></pre></div>
 <p>Each release lists SHA-256 checksums of the bundles. To check a
 download:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">shasum</span> <span class="at">-a</span> 256 EMtrace-macos-arm64-1.0.2.dmg                       <span class="co"># macOS</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Get-FileHash</span> EMtrace-win-x86_64-1.0.2.zip <span class="at">-Algorithm</span> SHA256       <span class="co"># Windows PowerShell</span></span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">shasum</span> <span class="at">-a</span> 256 EMtrace-macos-arm64-1.0.2.dmg</span></code></pre></div>
 <p><a id="building-from-source"></a></p>
 <h3 id="building-from-source">Building from source</h3>
 <p>EMtrace is a standard Python package (Python ≥ 3.10). Clone the
@@ -308,7 +296,7 @@ repository and install it into a virtual environment:</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/weinstein-bioinfo/EMtrace.git</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> EMtrace</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> <span class="at">-m</span> venv .venv</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="bu">source</span> .venv/bin/activate          <span class="co"># Windows: .venv\Scripts\activate</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="bu">source</span> .venv/bin/activate</span>
 <span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="at">-e</span> .                   <span class="co"># editable install</span></span></code></pre></div>
 <p>The graphical interface depends on PyQt6, which is an optional
 extra:</p>
@@ -574,9 +562,8 @@ in a later revision.</p>
 <p>Start the desktop application in one of two ways:</p>
 <ul>
 <li><strong>Installed app (prebuilt bundle):</strong> double-click
-<strong>EMtrace</strong> in <em>Applications</em> (macOS; or find it
-with Spotlight, ⌘-Space) or <code>EMtrace.exe</code> in the unzipped
-folder (Windows). The first start shows a security warning; see <a href="#opening-the-app">Opening the app</a>.</li>
+<strong>EMtrace</strong> in <em>Applications</em> (or find it with
+Spotlight, ⌘-Space). The first start shows a security warning; see <a href="#opening-the-app">Opening the app</a>.</li>
 <li><strong>From a terminal (installed from source):</strong> activate
 the environment EMtrace was installed into and run:</li>
 </ul>
