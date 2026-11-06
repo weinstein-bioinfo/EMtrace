@@ -3,6 +3,11 @@
 Both tools write progress and adapter information to stderr.  Pass
 ``log_file`` to have that output saved to disk.  ``PorechopABI`` also
 accepts ``adapters_file`` (written by the step layer after parsing).
+
+Both tools write a temp file (``TEMP_<pid>.fastq``) to the working
+directory, so they run in the output directory with absolute paths:
+the caller's working directory may be read-only (``/`` for a GUI app
+launched from Finder) or shared with another run.
 """
 
 from __future__ import annotations
@@ -48,8 +53,8 @@ class Porechop(ToolWrapper):
         log_file: Optional[Path] = None,
     ) -> Path:
         """Remove adapters using the built-in adapter database."""
-        input_fq = Path(input_fq)
-        output_fq = Path(output_fq)
+        input_fq = Path(input_fq).resolve()
+        output_fq = Path(output_fq).resolve()
         n_in = count_fastq_reads(input_fq)
         extra_params = " ".join(extra_args) if extra_args else ""
         self.run(
@@ -57,6 +62,7 @@ class Porechop(ToolWrapper):
             output_fq=output_fq,
             extra_params=extra_params,
             log_file=log_file,
+            cwd=output_fq.parent,
         )
         n_out = count_fastq_reads(output_fq)
         self.logger.info("porechop: kept %d / %d reads", n_out, n_in)
@@ -119,14 +125,15 @@ class PorechopABI(ToolWrapper):
         log_file : Path, optional
             If provided, stderr from the tool is written to this file.
         """
-        input_fq = Path(input_fq)
-        output_fq = Path(output_fq)
+        input_fq = Path(input_fq).resolve()
+        output_fq = Path(output_fq).resolve()
         n_in = count_fastq_reads(input_fq)
         self.run(
             input_fq=input_fq,
             output_fq=output_fq,
             extra_args=extra_args,
             log_file=log_file,
+            cwd=output_fq.parent,
         )
         n_out = count_fastq_reads(output_fq)
         self.logger.info("porechop_abi: kept %d / %d reads", n_out, n_in)

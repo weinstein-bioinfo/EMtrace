@@ -27,6 +27,7 @@ from emtrace.core.pipeline import Pipeline
 from emtrace.core.pipelinejob import PipelineJob
 from emtrace.steps import STEP_REGISTRY, StepName
 from emtrace.utils import shell
+from emtrace.utils.paths import working_dir
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +103,15 @@ class PipelineWorker(QThread):
     # ------------------------------------------------------------------
 
     def run(self) -> None:
-        """Execute the configured step sequence (called by ``QThread.start``)."""
+        """Execute the configured step sequence (called by ``QThread.start``).
+
+        Runs inside the job directory so external tools never inherit the
+        read-only ``/`` working directory of a Finder-launched app.
+        """
+        with working_dir(self._job.output_dir):
+            self._run()
+
+    def _run(self) -> None:
         pipeline = Pipeline(self._config)
         pipeline.setup_job(self._job)
         total = len(self._steps)

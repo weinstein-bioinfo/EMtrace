@@ -137,7 +137,7 @@ xattr -dr com.apple.quarantine /Applications/EMtrace.app
 Each release lists SHA-256 checksums of the bundles. To check a download:
 
 ```bash
-shasum -a 256 EMtrace-macos-arm64-1.0.2.dmg
+shasum -a 256 EMtrace-macos-arm64-1.0.3.dmg
 ```
 
 <a id="building-from-source"></a>

@@ -154,7 +154,9 @@ class PorechopABIConfig(BaseModel):
         if self.ab_initio:
             args.append("--ab_initio")
         if self.custom_adapters:
-            args.extend(["--custom_adapters", self.custom_adapters])
+            # absolute: porechop_abi runs in the output dir (wrappers/porechop.py)
+            args.extend(["--custom_adapters",
+                         str(Path(self.custom_adapters).expanduser().resolve())])
         if self.discard_database:
             args.append("--discard_database")
         args.extend([

@@ -21,6 +21,7 @@ from PyQt6.QtCore import QObject, QThread, pyqtSignal
 from emtrace.core.config import EMtraceConfig
 from emtrace.realtime.processor import BatchProcessor
 from emtrace.realtime.watcher import FastqWatcher
+from emtrace.utils.paths import working_dir
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +91,15 @@ class RealtimeWorker(QThread):
         logger.info("Realtime watch stop requested")
 
     def run(self) -> None:
-        """QThread entry point — blocks until stop_event is set."""
+        """QThread entry point — blocks until stop_event is set.
+
+        Runs inside the output directory so external tools never inherit the
+        read-only ``/`` working directory of a Finder-launched app.
+        """
+        with working_dir(self._output_dir):
+            self._run()
+
+    def _run(self) -> None:
         try:
             watcher = FastqWatcher(
                 self._watch_dir,
