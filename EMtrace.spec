@@ -192,6 +192,9 @@ hidden_imports += [
     'colorlog',
     'numpy',
     'pandas',
+    # kaleido's Chrome launcher script; never imported, only run as a script
+    # by choreographer (dispatched in scripts/pyinstaller_entry.py)
+    'choreographer.browsers._unix_pipe_chromium_wrapper',
 ]
 
 # ------------------------------------------------------------------

@@ -2,14 +2,31 @@
 """Minimal entry point for PyInstaller builds of EMtrace.
 
 Dispatches to CLI or GUI based on sys.argv:
+  - choreographer's Chrome wrapper script as the first argument -> run that
+    wrapper (see below), never the GUI
   - No arguments, or launched by macOS as a .app (Finder passes no
-    subcommand) -> launch the GUI
-  - Any CLI subcommand present (run, databases, watch, batch-summary,
-    batch-taxa, batch-abundance, gui, --version, --help) -> run the CLI
+    subcommand, or a legacy -psn_* argument) -> launch the GUI
+  - Anything else -> run the CLI (which reports unknown commands), so a
+    helper call of the frozen binary can never open a second GUI window
 """
 import multiprocessing
 import os
 import sys
+
+# kaleido (Plotly PNG/PDF export) starts Chrome through choreographer, which on
+# macOS/Linux runs `sys.executable _unix_pipe_chromium_wrapper.py <chrome> ...`.
+# In a frozen bundle sys.executable is this binary, so run the wrapper module
+# (bundled as a hidden import in EMtrace.spec) instead of starting EMtrace.
+# Must stay first: the wrapper dup2()s fds 3/4 before anything else opens files.
+_CHROME_WRAPPER = '_unix_pipe_chromium_wrapper.py'
+if len(sys.argv) > 1 and os.path.basename(sys.argv[1]) == _CHROME_WRAPPER:
+    import runpy
+    sys.argv = sys.argv[1:]
+    runpy.run_module(
+        'choreographer.browsers._unix_pipe_chromium_wrapper',
+        run_name='__main__', alter_sys=True,
+    )
+    sys.exit(0)
 
 # Required for PyInstaller --windowed on Windows: prevents child processes from
 # re-executing the entry point and re-launching the GUI (window flash/reopen).
@@ -94,16 +111,14 @@ _ensure_home()
 
 
 def _wants_cli() -> bool:
-    """Return True if the invocation looks like a CLI call."""
+    """Return True unless the invocation is a plain app launch.
+
+    Only no arguments (or macOS's legacy -psn_* process serial number) opens
+    the GUI; any other argument goes to the CLI, which handles subcommands
+    and rejects unknown ones instead of opening a second GUI window.
+    """
     args = sys.argv[1:]
-    if not args:
-        return False
-    cli_commands = {
-        'run', 'databases', 'watch', 'gui',
-        'batch-summary', 'batch-taxa', 'batch-abundance',
-        '--version', '--help', '-h',
-    }
-    return args[0] in cli_commands
+    return bool(args) and not args[0].startswith('-psn_')
 
 
 if _wants_cli():
