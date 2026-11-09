@@ -976,8 +976,10 @@ class ReportStep(PipelineStep):
             rid = header.lstrip("@").split()[0]
             seqs[rid] = (header, seq, qual)
 
-        # Write sorted reads
+        # Write sorted reads. Each file is truncated on its first write in this
+        # run, so running the report again does not duplicate its reads.
         sorted_count = 0
+        started: Set[Path] = set()
         for rid, (div, fam, gen, sp) in class_map.items():
             if rid not in seqs:
                 continue
@@ -996,11 +998,12 @@ class ReportStep(PipelineStep):
             )
             ensure_dir(sp_dir)
             sp_fq = sp_dir / f"{sp_s}.fq"
-            with open(sp_fq, "a") as fh:
+            with open(sp_fq, "a" if sp_fq in started else "w") as fh:
                 fh.write(
                     f"@{header.lstrip('@')}\n"
                     f"{seq}\n+\n{qual}\n"
                 )
+            started.add(sp_fq)
             sorted_count += 1
 
         self.logger.info(

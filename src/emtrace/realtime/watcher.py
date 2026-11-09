@@ -31,7 +31,7 @@ import time
 from typing import cast
 from pathlib import Path
 from queue import Empty, Queue
-from typing import Optional, Set
+from typing import Iterable, Optional, Set, Tuple
 
 logger = logging.getLogger("emtrace.realtime.watcher")
 
@@ -71,6 +71,10 @@ class FastqWatcher:
     rescan_interval : float
         With watchdog, also rescan the directory every this many
         seconds for files whose events were missed; 0 = off.
+    already_processed : iterable of (path, identity)
+        Files handled by an earlier session, never enqueued. The
+        identity (see ``_file_id``; may be None) also recognises them
+        if they were renamed in between.
     """
 
     def __init__(
@@ -82,6 +86,7 @@ class FastqWatcher:
         poll_interval: float = 1.0,
         scan_existing: bool = False,
         rescan_interval: float = 30.0,
+        already_processed: Iterable[Tuple[Path, Optional[tuple]]] = (),
     ) -> None:
         self.watch_dir = Path(watch_dir)
         self.debounce_seconds = debounce_seconds
@@ -94,6 +99,10 @@ class FastqWatcher:
         self._seen: Set[Path] = set()
         # Identities of processed files: a renamed file keeps its identity
         self._seen_ids: Set[tuple] = set()
+        for path, fid in already_processed:
+            self._seen.add(Path(path).resolve())
+            if fid is not None:
+                self._seen_ids.add(tuple(fid))
         # Files present at start with scan_existing=False: skipped by scans
         self._preexisting: Set[Path] = set()
         self._watchdog_active = False

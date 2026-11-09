@@ -10,9 +10,11 @@ signals.  The panel owns its Start / Stop controls and emits
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Optional
 
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
@@ -34,23 +36,34 @@ class RealtimePanelWidget(QWidget):
     """Panel combining watch controls, live status, and top-taxa display."""
 
     #: Emitted when the user clicks "Start Watching".
-    #: Arguments: watch_dir, output_dir, batch_size, debounce_seconds
-    start_requested = pyqtSignal(Path, Path, int, float)
+    #: Arguments: watch_dir, batch_size, debounce_seconds, scan_existing
+    start_requested = pyqtSignal(Path, int, float, bool)
 
     #: Emitted when the user clicks "Stop".
     stop_requested = pyqtSignal()
 
     _STATUS_STYLE: dict[str, str] = {
-        "watching": "color: green;  font-size: 16px;",
-        "stopped":  "color: grey;   font-size: 16px;",
-        "idle":     "color: grey;   font-size: 16px;",
-        "error":    "color: red;    font-size: 16px;",
+        "watching":   "color: green;  font-size: 16px;",
+        "starting":   "color: orange; font-size: 16px;",
+        "stopping":   "color: orange; font-size: 16px;",
+        "finalizing": "color: orange; font-size: 16px;",
+        "stopped":    "color: grey;   font-size: 16px;",
+        "idle":       "color: grey;   font-size: 16px;",
+        "error":      "color: red;    font-size: 16px;",
+    }
+
+    _STATUS_TEXT: dict[str, str] = {
+        "starting":   "Starting…",
+        "stopping":   "Stopping: finishing the current batch…",
+        "finalizing": "Finalizing: merging batches and writing the report…",
     }
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
+        self._job_dir: Optional[Path] = None
         self._build_ui()
-        self._set_watching(False)
+        self.set_job(None)
+        self._set_controls("idle")
 
     # ==================================================================
     # UI construction
@@ -71,11 +84,17 @@ class RealtimePanelWidget(QWidget):
         watch_browse.clicked.connect(self._pick_watch_dir)
         ctrl_form.addRow("Watch directory:", self._make_browse_row(self._watch_edit, watch_browse))
 
-        self._out_edit = QLineEdit()
-        self._out_edit.setPlaceholderText("Leave blank → <watch_dir>/realtime_output")
-        out_browse = QPushButton("Browse…")
-        out_browse.clicked.connect(self._pick_out_dir)
-        ctrl_form.addRow("Output directory:", self._make_browse_row(self._out_edit, out_browse))
+        self._results_label = QLabel()
+        self._results_label.setWordWrap(True)
+        ctrl_form.addRow("Results:", self._results_label)
+
+        self._scan_check = QCheckBox("Process files already in the directory")
+        self._scan_check.setChecked(True)
+        self._scan_check.setToolTip(
+            "If unchecked, only files that arrive after Start are processed. "
+            "A job watched before always catches up on files in the directory."
+        )
+        ctrl_form.addRow("", self._scan_check)
 
         self._batch_spin = QSpinBox()
         self._batch_spin.setRange(1, 1000)
@@ -110,7 +129,7 @@ class RealtimePanelWidget(QWidget):
         self._start_btn = QPushButton("▶  Start Watching")
         self._stop_btn = QPushButton("■  Stop")
         self._start_btn.clicked.connect(self._on_start_clicked)
-        self._stop_btn.clicked.connect(self.stop_requested)
+        self._stop_btn.clicked.connect(self._on_stop_clicked)
         btn_layout.addWidget(self._start_btn)
         btn_layout.addWidget(self._stop_btn)
         btn_layout.addStretch()
@@ -182,6 +201,7 @@ class RealtimePanelWidget(QWidget):
 
     def on_abundance_updated(self, snapshot: dict) -> None:
         """Refresh stats and top-taxa list from a RealtimeState snapshot."""
+        self._reads_label.setText(f"{snapshot.get('total_reads', 0):,}")
         self._files_label.setText(str(snapshot.get("total_files", "—")))
         self._taxa_count_label.setText(str(snapshot.get("n_taxa", "—")))
 
@@ -198,22 +218,47 @@ class RealtimePanelWidget(QWidget):
         """Update the status indicator and toggle control availability."""
         style = self._STATUS_STYLE.get(status, self._STATUS_STYLE["idle"])
         self._indicator.setStyleSheet(style)
-        self._status_text.setText(status.capitalize())
-        self._set_watching(status == "watching")
+        self._status_text.setText(self._STATUS_TEXT.get(status, status.capitalize()))
+        self._set_controls(status)
 
     def on_error(self, msg: str) -> None:
         QMessageBox.warning(self, "Realtime error", msg)
 
     # ==================================================================
+    # Called by MainWindow
+    # ==================================================================
+
+    def set_job(self, job) -> None:
+        """Show where results go; clear the live numbers when the job changes."""
+        job_dir = job.output_dir if job is not None else None
+        if job_dir == self._job_dir and job_dir is not None:
+            return
+        self._job_dir = job_dir
+        self._results_label.setText(
+            str(job.watch_dir) if job is not None
+            else "<job directory>/watch (a job is created when you start watching)"
+        )
+        for label in (self._batch_label, self._reads_label,
+                      self._files_label, self._taxa_count_label):
+            label.setText("—")
+        self._taxa_list.clear()
+
+    # ==================================================================
     # Internal helpers
     # ==================================================================
 
-    def _set_watching(self, watching: bool) -> None:
-        self._start_btn.setEnabled(not watching)
-        self._stop_btn.setEnabled(watching)
-        for w in (self._watch_edit, self._out_edit,
+    def _set_controls(self, status: str) -> None:
+        """Enable controls for *status*: only Stop while watching, none in transitions."""
+        busy = status in ("starting", "watching", "stopping", "finalizing")
+        self._start_btn.setEnabled(not busy)
+        self._stop_btn.setEnabled(status == "watching")
+        for w in (self._watch_edit, self._scan_check,
                   self._batch_spin, self._debounce_spin):
-            w.setEnabled(not watching)
+            w.setEnabled(not busy)
+
+    def _on_stop_clicked(self) -> None:
+        self._stop_btn.setEnabled(False)
+        self.stop_requested.emit()
 
     def _pick_watch_dir(self) -> None:
         path = QFileDialog.getExistingDirectory(
@@ -221,13 +266,6 @@ class RealtimePanelWidget(QWidget):
         )
         if path:
             self._watch_edit.setText(path)
-
-    def _pick_out_dir(self) -> None:
-        path = QFileDialog.getExistingDirectory(
-            self, "Select Output Directory", self._out_edit.text() or "",
-        )
-        if path:
-            self._out_edit.setText(path)
 
     def _on_start_clicked(self) -> None:
         watch_str = self._watch_edit.text().strip()
@@ -239,17 +277,9 @@ class RealtimePanelWidget(QWidget):
             QMessageBox.warning(self, "Invalid directory", f"Not a directory:\n{watch_dir}")
             return
 
-        out_str = self._out_edit.text().strip()
-        out_dir = Path(out_str) if out_str else watch_dir / "realtime_output"
-        try:
-            out_dir.mkdir(parents=True, exist_ok=True)
-        except OSError as exc:
-            QMessageBox.warning(self, "Output directory error", str(exc))
-            return
-
         self.start_requested.emit(
             watch_dir,
-            out_dir,
             self._batch_spin.value(),
             self._debounce_spin.value(),
+            self._scan_check.isChecked(),
         )

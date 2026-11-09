@@ -49,14 +49,16 @@ class TestBatchProcessorInit:
 
     def test_creates_directories(self, tmp_dir: Path):
         cfg = EMtraceConfig()
-        out = tmp_dir / "rt_output"
+        job_dir = tmp_dir / "job"
         proc = BatchProcessor(
             config=cfg,
-            output_dir=out,
+            job_dir=job_dir,
             job_name="test",
         )
-        assert (out / "batches").is_dir()
-        assert (out / "results").is_dir()
+        assert proc.output_dir == job_dir / "watch"
+        assert (job_dir / "watch" / "batches").is_dir()
+        assert (job_dir / "watch" / "results").is_dir()
+        assert (job_dir / "job.yaml").is_file()
 
     def test_concat_fastq(self, tmp_dir: Path):
         """Test FASTQ concatenation helper."""
@@ -99,7 +101,7 @@ class TestTopTaxaNames:
 
     @pytest.fixture
     def proc(self, tmp_dir: Path) -> BatchProcessor:
-        return BatchProcessor(config=EMtraceConfig(), output_dir=tmp_dir / "rt", job_name="t")
+        return BatchProcessor(config=EMtraceConfig(), job_dir=tmp_dir / "rt", job_name="t")
 
     def test_snapshot_names_top_taxa(self):
         state = RealtimeState()

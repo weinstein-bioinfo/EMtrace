@@ -112,6 +112,65 @@ def _augment_path_macos() -> None:
 
 
 # ---------------------------------------------------------------------------
+# macOS application menu name
+# ---------------------------------------------------------------------------
+
+def set_macos_app_name(name: str) -> None:
+    """Show *name* instead of "Python" in the macOS application menu.
+
+    macOS takes the menu's title and its "About/Hide/Quit <name>" items from
+    the bundle's ``CFBundleName``, not from ``QApplication.applicationName``.
+    A PyInstaller bundle sets it in EMtrace.spec, but running from a Python
+    environment uses Python's own bundle, so it is overridden here in memory.
+
+    Call before the QApplication is created. Calls the Objective-C runtime
+    through ctypes, to avoid a dependency on PyObjC. Purely cosmetic: on any
+    failure the menu just keeps its default name.
+    """
+    if sys.platform != "darwin" or getattr(sys, "frozen", False):
+        return
+    try:
+        import ctypes
+        from ctypes.util import find_library
+
+        ctypes.cdll.LoadLibrary(find_library("Foundation"))
+        objc = ctypes.cdll.LoadLibrary(find_library("objc"))
+        objc.objc_getClass.restype = ctypes.c_void_p
+        objc.objc_getClass.argtypes = [ctypes.c_char_p]
+        objc.sel_registerName.restype = ctypes.c_void_p
+        objc.sel_registerName.argtypes = [ctypes.c_char_p]
+
+        # objc_msgSend must be called through a prototype of the exact
+        # signature: it is not a true variadic function on Apple Silicon.
+        ptr = ctypes.c_void_p
+        send = ("objc_msgSend", objc)
+        send0 = ctypes.CFUNCTYPE(ptr, ptr, ptr)(send)
+        send_str = ctypes.CFUNCTYPE(ptr, ptr, ptr, ctypes.c_char_p)(send)
+        send_sel = ctypes.CFUNCTYPE(ctypes.c_bool, ptr, ptr, ptr)(send)
+        send_set = ctypes.CFUNCTYPE(None, ptr, ptr, ptr, ptr)(send)
+        sel = objc.sel_registerName
+
+        def nsstring(text: str):
+            return send_str(
+                objc.objc_getClass(b"NSString"),
+                sel(b"stringWithUTF8String:"), text.encode(),
+            )
+
+        bundle = send0(objc.objc_getClass(b"NSBundle"), sel(b"mainBundle"))
+        for getter in (b"infoDictionary", b"localizedInfoDictionary"):
+            info = send0(bundle, sel(getter))
+            if info and send_sel(
+                info, sel(b"respondsToSelector:"), sel(b"setObject:forKey:"),
+            ):
+                send_set(
+                    info, sel(b"setObject:forKey:"),
+                    nsstring(name), nsstring("CFBundleName"),
+                )
+    except Exception:  # noqa: BLE001
+        pass
+
+
+# ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
 

@@ -65,6 +65,7 @@ from emtrace.gui.platform import (
     bundle_root,
     configure_platform,
     load_recent,
+    set_macos_app_name,
 )
 from emtrace.gui.widgets.log_panel import LogPanel
 from emtrace.gui.widgets.main_content import MainContentStack
@@ -72,6 +73,13 @@ from emtrace.gui.widgets.run_toolbar import RunToolbar
 from emtrace.gui.widgets.step_panel import StepPanel
 from emtrace.gui.workers.pipeline_worker import PipelineWorker
 from emtrace.gui.workers.realtime_worker import RealtimeWorker
+from emtrace.realtime.finalize import (
+    dirs_overlap,
+    has_unmerged_batches,
+    is_watch_job,
+    merged_input,
+    watch_conflict,
+)
 from emtrace.steps import STEP_REGISTRY, StepName
 
 
@@ -192,15 +200,21 @@ class _LogViewerDialog(QDialog):
 # ---------------------------------------------------------------------------
 
 class _NewSampleDialog(QDialog):
-    """Modal dialog collecting a sample name, input FASTQ, and output dir."""
+    """Modal dialog collecting a sample name, input FASTQ, and output dir.
+
+    With *watch_mode* the reads fields are left out: a watch job gets its reads
+    from the watched directory.
+    """
 
     def __init__(
         self,
         default_output_dir: Optional[Path] = None,
         parent: Optional[QWidget] = None,
+        watch_mode: bool = False,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle("New Job")
+        self._watch_mode = watch_mode
+        self.setWindowTitle("New Watch Job" if watch_mode else "New Job")
         self.setModal(True)
         self.resize(520, 0)
 
@@ -251,6 +265,9 @@ class _NewSampleDialog(QDialog):
         form.addRow("Input reads:", reads_widget)
         form.addRow("Reads R2 (paired-end):", reads_r2_widget)
         form.addRow("Output base directory:", out_widget)
+        if watch_mode:
+            form.setRowVisible(reads_widget, False)
+            form.setRowVisible(reads_r2_widget, False)
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok
@@ -261,6 +278,13 @@ class _NewSampleDialog(QDialog):
         buttons.rejected.connect(self.reject)
 
         layout = QVBoxLayout(self)
+        if watch_mode:
+            note = QLabel(
+                "Watching needs a job of its own: its results are merged into "
+                "the job when you stop. Any job that is open now is left as it is."
+            )
+            note.setWordWrap(True)
+            layout.addWidget(note)
         layout.addLayout(form)
         layout.addWidget(buttons)
 
@@ -302,7 +326,7 @@ class _NewSampleDialog(QDialog):
         if not name:
             QMessageBox.warning(self, "Missing name", "Job name is required.")
             return
-        if not reads or not Path(reads).is_file():
+        if not self._watch_mode and (not reads or not Path(reads).is_file()):
             QMessageBox.warning(self, "Invalid reads", "Pick an existing FASTQ file.")
             return
         if reads_r2 and not Path(reads_r2).is_file():
@@ -314,11 +338,13 @@ class _NewSampleDialog(QDialog):
         Path(outdir).mkdir(parents=True, exist_ok=True)
         self.accept()
 
-    def result_values(self) -> tuple[str, Path, Path, Optional[Path]]:
+    def result_values(self) -> tuple[str, Optional[Path], Path, Optional[Path]]:
+        """Name, input reads (None in watch mode), output base dir, R2 reads."""
         r2_text = self._reads_r2_edit.text().strip()
+        reads_text = self._reads_edit.text().strip()
         return (
             self._name_edit.text().strip(),
-            Path(self._reads_edit.text().strip()),
+            Path(reads_text) if reads_text else None,
             Path(self._out_edit.text().strip()),
             Path(r2_text) if r2_text else None,
         )
@@ -343,6 +369,7 @@ class MainWindow(QMainWindow):
         self._sample: Optional[PipelineJob] = None
         self._worker: Optional[PipelineWorker] = None
         self._realtime_worker: Optional[RealtimeWorker] = None
+        self._close_after_watch: bool = False
         self._closing: bool = False
 
         self.setWindowTitle("EMtrace")
@@ -490,6 +517,8 @@ class MainWindow(QMainWindow):
 
     def _on_new(self) -> None:
         """File ▶ New Job — collect identity + paths and create a job."""
+        if self._refuse_while_watching():
+            return
         recent = load_recent()
         default_out = (
             Path(recent[0]["path"]).parent if recent else Path.cwd()
@@ -526,6 +555,8 @@ class MainWindow(QMainWindow):
 
     def _on_open(self) -> None:
         """File ▶ Open Job — pick a results directory; auto-resolve input reads."""
+        if self._refuse_while_watching():
+            return
         recent = load_recent()
         default_out = recent[0].get("path", "") if recent else ""
 
@@ -536,9 +567,14 @@ class MainWindow(QMainWindow):
             return
         sample_dir = Path(outdir)
 
-        reads_path = self._resolve_input_reads(sample_dir)
-        if reads_path is None:
-            return  # user cancelled the fallback prompt
+        if is_watch_job(sample_dir):
+            # Reads come from the watched directory: nothing to ask for, and
+            # no merged input yet if the watch has not been stopped.
+            reads_path = merged_input(sample_dir)
+        else:
+            reads_path = self._resolve_input_reads(sample_dir)
+            if reads_path is None:
+                return  # user cancelled the fallback prompt
 
         # R2 + platform are read directly from the manifest; if absent the job
         # is treated as single-end Nanopore (the historical default).
@@ -591,13 +627,14 @@ class MainWindow(QMainWindow):
 
     def _activate_job(
         self,
-        reads_path: Path,
+        reads_path: Optional[Path],
         sample_dir: Path,
         reads_r2: Optional[Path] = None,
         platform: str = "nanopore",
     ) -> None:
         """Create a PipelineJob from *reads_path* + *sample_dir* and activate it.
 
+        *reads_path* is None only for a watch job that has not been stopped yet.
         Loads an adjacent ``config.yaml`` if present, updates the UI,
         appends to the recent list, and (re)writes ``job.yaml`` so the
         manifest stays in sync with the resolved path.
@@ -631,7 +668,10 @@ class MainWindow(QMainWindow):
         self._scan_existing_files(self._sample)
         self._activate_sample(self._sample)
         self._main_content.set_config(self._config)
-        add_recent(str(sample_dir), sample_dir.name, input_reads=str(reads_path))
+        add_recent(
+            str(sample_dir), sample_dir.name,
+            input_reads=str(reads_path) if reads_path else "",
+        )
         logging.getLogger("emtrace").info("Opened job: %s", sample_dir)
 
     def _scan_existing_files(self, job: PipelineJob) -> None:
@@ -757,6 +797,8 @@ class MainWindow(QMainWindow):
 
     def _on_open_recent(self, path: str, input_reads: str, name: str) -> None:
         """Reopen a job from the recent list."""
+        if self._refuse_while_watching():
+            return
         sample_dir = Path(path)
         if not sample_dir.exists():
             QMessageBox.warning(
@@ -765,8 +807,12 @@ class MainWindow(QMainWindow):
             )
             return
 
-        reads_path = Path(input_reads) if input_reads else None
-        if reads_path is None or not reads_path.is_file():
+        watch_job = is_watch_job(sample_dir)
+        reads_path = (
+            merged_input(sample_dir) if watch_job
+            else Path(input_reads) if input_reads else None
+        )
+        if not watch_job and (reads_path is None or not reads_path.is_file()):
             # Reads path missing or stale — ask the user to locate it.
             reads_str, _ = QFileDialog.getOpenFileName(
                 self,
@@ -798,6 +844,8 @@ class MainWindow(QMainWindow):
         self._main_content.set_job(sample)
         self._step_panel.reset_status()
         self._step_panel.apply_platform(sample.platform)
+        if is_watch_job(sample.output_dir):
+            self._step_panel.apply_watch_job()
         self._step_panel.update_quick_info(
             name=sample.name,
             base_dir=str(sample.output_dir),
@@ -852,11 +900,17 @@ class MainWindow(QMainWindow):
             return
 
         file_list = "\n".join(f"  • {p.name}" for p in to_delete)
+        consequence = (
+            "These reads were merged from the watch batches, which no longer "
+            "hold a copy. They cannot be recreated, and a later watch of this "
+            "job would only add reads from its new batches."
+            if is_watch_job(self._sample.output_dir)
+            else "Preprocessing steps will re-run from the original input reads."
+        )
         reply = QMessageBox.question(
             self,
             "Clear preprocessing files?",
-            f"The following files will be deleted:\n\n{file_list}\n\n"
-            "Preprocessing steps will re-run from the original input reads.",
+            f"The following files will be deleted:\n\n{file_list}\n\n{consequence}",
             QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
         )
         if reply != QMessageBox.StandardButton.Ok:
@@ -1017,6 +1071,19 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(
                 self, "No Job",
                 "Create or open a job first (File \u25b6 New Job).",
+            )
+            return
+
+        if self._refuse_while_watching():
+            return
+
+        job = self._sample
+        if job.input_reads is None or has_unmerged_batches(job.watch_dir):
+            QMessageBox.warning(
+                self, "Watch Not Finished",
+                "This watch job has no merged results yet. In the Realtime tab, "
+                "click Start Watching and then Stop to merge its batches and "
+                "write the report.",
             )
             return
 
@@ -1204,26 +1271,106 @@ class MainWindow(QMainWindow):
     # Realtime watch handlers
     # ==================================================================
 
-    def _on_watch_start(self, watch_dir: Path, output_dir: Path,
-                        batch_size: int, debounce: float) -> None:
-        if self._realtime_worker and self._realtime_worker.isRunning():
+    def _is_watching(self) -> bool:
+        return self._realtime_worker is not None and self._realtime_worker.isRunning()
+
+    def _refuse_while_watching(self) -> bool:
+        """Tell the user to stop watching first; True if a watch is active."""
+        if not self._is_watching():
+            return False
+        QMessageBox.information(
+            self, "Watching in Progress",
+            "Stop watching in the Realtime tab first.",
+        )
+        return True
+
+    def _new_watch_job(self, watch_dir: Path) -> Optional[PipelineJob]:
+        """Create a job for watching via the New Job dialog; None if cancelled."""
+        recent = load_recent()
+        default_out = Path(recent[0]["path"]).parent if recent else Path.cwd()
+        dlg = _NewSampleDialog(
+            default_output_dir=default_out, parent=self, watch_mode=True,
+        )
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return None
+
+        name, _, out_root, _ = dlg.result_values()
+        job_dir = out_root / name
+        conflict = watch_conflict(job_dir)
+        if conflict:
+            QMessageBox.warning(
+                self, "Job Already Exists",
+                f"{job_dir} cannot be used for watching: {conflict}.\n\n"
+                "Choose another job name.",
+            )
+            return None
+        if dirs_overlap(watch_dir, job_dir):
+            self._warn_dirs_overlap(watch_dir, job_dir)
+            return None
+
+        try:
+            job = PipelineJob(
+                name=name,
+                output_dir=job_dir,
+                num_threads=self._config.runtime.num_threads,
+            )
+            job.init_dirs()
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "Error", f"Failed to create job:\n{exc}")
+            return None
+
+        self._sample = job
+        self._activate_sample(job)
+        self._main_content.set_config(self._config)
+        add_recent(str(job_dir), name, input_reads="")
+        logging.getLogger("emtrace").info("Created watch job: %s", job_dir)
+        return job
+
+    def _warn_dirs_overlap(self, watch_dir: Path, job_dir: Path) -> None:
+        QMessageBox.warning(
+            self, "Overlapping Directories",
+            f"Watch directory:\n{watch_dir}\n\nJob directory:\n{job_dir}\n\n"
+            "One is inside the other. The watcher also looks in subdirectories, "
+            "so it would process the job's own batch files as new input.",
+        )
+
+    def _on_watch_start(self, watch_dir: Path, batch_size: int, debounce: float,
+                        scan_existing: bool) -> None:
+        if self._is_watching():
             return
+        if self._worker and self._worker.isRunning():
+            QMessageBox.information(
+                self, "Pipeline Running",
+                "Wait for the pipeline run to finish before you start watching.",
+            )
+            return
+
+        # A job with its own reads or results is never overwritten
+        job = self._sample
+        if job is None or watch_conflict(job.output_dir) is not None:
+            job = self._new_watch_job(watch_dir)
+            if job is None:
+                return
+        elif dirs_overlap(watch_dir, job.output_dir):
+            self._warn_dirs_overlap(watch_dir, job.output_dir)
+            return
+
+        # Same as _on_run: pending config-editor changes count.
+        self._main_content.config_page._on_apply()
         cfg = self._config
-        ann1 = cfg.annotation.ann1
-        ann2 = cfg.annotation.ann2
-        anns = cfg.annotation.anns
-        hostgen = cfg.preprocess.bgfilter.bgfilter
 
         self._realtime_worker = RealtimeWorker(
             config=cfg,
             watch_dir=watch_dir,
-            output_dir=output_dir,
-            ann1=ann1,
-            ann2=ann2,
-            anns=anns,
-            hostgen=hostgen,
+            job=job,
+            ann1=cfg.annotation.ann1,
+            ann2=cfg.annotation.ann2,
+            anns=cfg.annotation.anns,
+            hostgen=cfg.preprocess.bgfilter.bgfilter,
             batch_size=batch_size,
             debounce=debounce,
+            scan_existing=scan_existing,
+            parent=self,
         )
         rp = self._main_content.realtime_panel
         w = self._realtime_worker
@@ -1232,7 +1379,12 @@ class MainWindow(QMainWindow):
         w.signals.abundance_updated.connect(rp.on_abundance_updated)
         w.signals.watch_status_changed.connect(rp.on_watch_status_changed)
         w.signals.error.connect(rp.on_error)
-        w.signals.worker_finished.connect(self._on_watch_done)
+        w.signals.job_updated.connect(self._on_job_updated)
+        # QThread.finished, not a signal of our own: the thread must have ended
+        # before it can be released.
+        w.finished.connect(self._on_watch_done)
+        w.finished.connect(w.deleteLater)
+        rp.on_watch_status_changed("starting")
         w.start()
         self._main_content.switch_to(MainContentStack.TAB_REALTIME)
 
@@ -1242,9 +1394,39 @@ class MainWindow(QMainWindow):
 
     def _on_watch_done(self) -> None:
         self._realtime_worker = None
+        job = self._sample
+        if job is not None:
+            # Register the merged files, so steps and viewers find them
+            self._scan_existing_files(job)
+            self._main_content.refresh_results(job)
+            self._step_panel.apply_watch_job()
+            report = job.get_file("stats_html")
+            self._status_label.setText(
+                f"Watch finished: {report}" if report else "Watch finished: no report"
+            )
+        if self._close_after_watch:
+            self.close()
 
     def closeEvent(self, event) -> None:  # noqa: N802 (Qt naming)
         """Detach the log handler before exit so the root logger is clean."""
+        if self._is_watching():
+            # Close once the batches are merged and the report is written
+            if not self._close_after_watch:
+                reply = QMessageBox.question(
+                    self, "Stop Watching?",
+                    "Watching is still active. Stop it, finish the current batch "
+                    "and the report, and then close EMtrace?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+                )
+                if reply != QMessageBox.StandardButton.Yes:
+                    event.ignore()
+                    return
+                self._close_after_watch = True
+                self._on_watch_stop()
+            self._status_label.setText("Finishing watch, then closing…")
+            event.ignore()
+            return
+
         try:
             logging.getLogger("emtrace").removeHandler(self._log_handler)
         except Exception:  # noqa: BLE001
@@ -1278,6 +1460,7 @@ def launch_gui(config_file: Optional[str] = None) -> int:
     else:
         config = EMtraceConfig.create_default()
 
+    set_macos_app_name("EMtrace")
     app = QApplication.instance() or QApplication(sys.argv)
     app.setApplicationName("EMtrace")
     app.setOrganizationName("NGS")

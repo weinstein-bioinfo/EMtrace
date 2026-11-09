@@ -19,6 +19,7 @@ from typing import Optional
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
 from emtrace.core.config import EMtraceConfig
+from emtrace.core.pipelinejob import PipelineJob
 from emtrace.realtime.processor import BatchProcessor
 from emtrace.realtime.watcher import FastqWatcher
 from emtrace.utils.paths import working_dir
@@ -33,20 +34,29 @@ class RealtimeWorkerSignals(QObject):
     batch_finished = pyqtSignal(int, int, int) # batch_num, reads_in_batch, total_reads
     abundance_updated = pyqtSignal(dict)       # RealtimeState.get_snapshot()
     error = pyqtSignal(str)
-    watch_status_changed = pyqtSignal(str)     # "watching" | "stopped"
-    worker_finished = pyqtSignal()
+    # "watching" | "stopping" | "finalizing" | "stopped" | NO_REPORT_STATUS
+    watch_status_changed = pyqtSignal(str)
+    job_updated = pyqtSignal(object)           # PipelineJob after the final merge
+
+
+#: Final status when no batch completed, so there is nothing to report.
+NO_REPORT_STATUS = "stopped: no batch completed, so no report"
 
 
 class RealtimeWorker(QThread):
     """Background thread that watches a directory and processes FASTQ batches.
 
+    Results go to the job: batches to ``<job>/watch``, merged into the job's
+    standard layout when stopped. A job watched before resumes where it ended.
+
     Usage::
 
-        worker = RealtimeWorker(config, watch_dir="/data/nanopore", output_dir="/out")
+        worker = RealtimeWorker(config, watch_dir="/data/nanopore", job=job)
         worker.signals.batch_finished.connect(panel.on_batch_finished)
         worker.signals.abundance_updated.connect(panel.on_abundance_updated)
         worker.signals.watch_status_changed.connect(panel.on_watch_status_changed)
-        worker.signals.worker_finished.connect(self._on_watch_done)
+        worker.signals.job_updated.connect(self._on_job_updated)
+        worker.finished.connect(self._on_watch_done)
         worker.start()
         ...
         worker.request_stop()
@@ -56,8 +66,7 @@ class RealtimeWorker(QThread):
         self,
         config: EMtraceConfig,
         watch_dir: Path,
-        output_dir: Path,
-        job_name: str = "realtime",
+        job: PipelineJob,
         *,
         ann1: str = "",
         ann2: str = "",
@@ -73,8 +82,7 @@ class RealtimeWorker(QThread):
         self.signals = RealtimeWorkerSignals()
         self._config = config
         self._watch_dir = Path(watch_dir)
-        self._output_dir = Path(output_dir)
-        self._job_name = job_name
+        self._job = job
         self._ann1 = ann1
         self._ann2 = ann2
         self._anns = anns
@@ -88,28 +96,24 @@ class RealtimeWorker(QThread):
     def request_stop(self) -> None:
         """Signal the watch loop to exit after the current batch completes."""
         self._stop_event.set()
+        self.signals.watch_status_changed.emit("stopping")
         logger.info("Realtime watch stop requested")
 
     def run(self) -> None:
         """QThread entry point — blocks until stop_event is set.
 
-        Runs inside the output directory so external tools never inherit the
+        Runs inside the job directory so external tools never inherit the
         read-only ``/`` working directory of a Finder-launched app.
         """
-        with working_dir(self._output_dir):
+        with working_dir(self._job.output_dir):
             self._run()
 
     def _run(self) -> None:
         try:
-            watcher = FastqWatcher(
-                self._watch_dir,
-                debounce_seconds=self._debounce,
-                scan_existing=self._scan_existing,
-            )
             processor = BatchProcessor(
                 config=self._config,
-                output_dir=self._output_dir,
-                job_name=self._job_name,
+                job_dir=self._job.output_dir,
+                job_name=self._job.name,
                 ann1=self._ann1,
                 ann2=self._ann2,
                 anns=self._anns,
@@ -117,16 +121,26 @@ class RealtimeWorker(QThread):
                 batch_size=self._batch_size,
                 run_report=self._run_report,
             )
+            processed = processor.resume()
+            # A resumed watch catches up on files that arrived while stopped
+            watcher = FastqWatcher(
+                self._watch_dir,
+                debounce_seconds=self._debounce,
+                scan_existing=self._scan_existing or bool(processed),
+                already_processed=processed,
+            )
+            watcher.start()
         except Exception as exc:
             logger.error("Realtime setup failed: %s", exc)
             self.signals.error.emit(f"Setup failed: {exc}")
-            self.signals.worker_finished.emit()
+            self.signals.watch_status_changed.emit("stopped")
             return
 
-        watcher.start()
         self.signals.watch_status_changed.emit("watching")
-        batch_num = 0
-        prev_total = 0
+        snap = processor.state.get_snapshot()
+        prev_total = snap["total_reads"]
+        if processed:
+            self.signals.abundance_updated.emit(snap)
         batch_buffer = []
 
         try:
@@ -138,7 +152,7 @@ class RealtimeWorker(QThread):
                 batch_buffer.append(path)
 
                 if len(batch_buffer) >= self._batch_size:
-                    batch_num += 1
+                    batch_num = processor.next_batch
                     self.signals.batch_started.emit(batch_num)
                     try:
                         processor.process_files(batch_buffer)
@@ -157,17 +171,33 @@ class RealtimeWorker(QThread):
             logger.exception("Realtime worker unexpected error")
             self.signals.error.emit(str(exc))
         finally:
-            if batch_buffer:
-                logger.info("Processing %d remaining file(s) before shutdown", len(batch_buffer))
-                try:
-                    processor.process_files(batch_buffer)
-                except Exception as exc:
-                    logger.error("Final batch failed: %s", exc)
-            try:
-                processor.generate_final_report()
-            except Exception as exc:
-                logger.error("Final report failed: %s", exc)
-
             watcher.stop()
-            self.signals.watch_status_changed.emit("stopped")
-            self.signals.worker_finished.emit()
+            status = self._finish(processor, watcher, batch_buffer)
+            self.signals.job_updated.emit(processor.job)
+            self.signals.watch_status_changed.emit(status)
+
+    def _finish(
+        self, processor: BatchProcessor, watcher: FastqWatcher, batch_buffer: list,
+    ) -> str:
+        """Process buffered files and finalize the job; returns the final status."""
+        if batch_buffer:
+            logger.info("Processing %d remaining file(s) before shutdown", len(batch_buffer))
+            try:
+                processor.process_files(batch_buffer)
+            except Exception as exc:
+                logger.error("Final batch failed: %s", exc)
+                self.signals.error.emit(f"Final batch: {exc}")
+            self.signals.abundance_updated.emit(processor.state.get_snapshot())
+        if watcher.queued_count:
+            logger.info(
+                "%d queued file(s) not processed; starting this job again "
+                "picks them up", watcher.queued_count,
+            )
+
+        self.signals.watch_status_changed.emit("finalizing")
+        try:
+            return "stopped" if processor.finalize() else NO_REPORT_STATUS
+        except Exception as exc:
+            logger.exception("Final report failed")
+            self.signals.error.emit(f"Final report failed: {exc}")
+            return "stopped"

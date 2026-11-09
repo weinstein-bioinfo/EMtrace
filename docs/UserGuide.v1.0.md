@@ -796,7 +796,8 @@ Other subcommands:
 `emtrace watch` monitors a directory for new FASTQ files (e.g. MinKNOW
 output) and processes each batch through preprocessing, host filtering,
 annotation, and EM abundance estimation, updating a running abundance table.
-A final report is generated when monitoring is stopped (Ctrl+C).
+Stopping (Ctrl+C) merges the results into the job and writes the report; see
+[Stopping and next steps](#watch-stopping).
 
 ```bash
 emtrace watch \
@@ -819,14 +820,67 @@ seconds. The directory is also rescanned every 30 s, which catches files whose
 change notifications were missed (e.g. on network drives). A file that was
 already processed is not processed again after a rename. FASTQ files already in
 the directory when monitoring starts are ignored unless `--scan-existing` is
-given.
+given, except when an earlier watch of the job is continued (see below).
 
-**In the GUI**, the **Realtime** tab runs the same monitor with the settings of
-the job that is open. Set the *Watch directory* and *Output directory*, the
-*Batch size* (files per batch) and *Debounce* (seconds), then click
-**▶ Start Watching**; **■ Stop** ends monitoring and writes the final report.
-The tab shows the current batch, total reads, files and taxa detected, and a
-*Top taxa* list by EM abundance, with species names (hover for the taxid).
+**In the GUI**, the **Realtime** tab runs the same monitor. Set the
+*Watch directory*, the *Batch size* (files per batch) and *Debounce* (seconds),
+choose whether to *Process files already in the directory* (on by default), and
+click **▶ Start Watching**. The tab shows the current batch, total reads, files
+and taxa detected, and a *Top taxa* list by EM abundance, with species names
+(hover for the taxid). **■ Stop** ends monitoring after the current batch.
+
+Watching needs a job of its own, because its results are merged into the job.
+If the open job is a watch job, the tab continues it. Otherwise, **▶ Start
+Watching** asks for a name and output directory and creates one, without asking
+for input reads. A job with its own input reads or results is never overwritten.
+The same applies to `emtrace watch`, which uses the job directory
+`<res>/<sample>` and stops with an error if that job has its own input or
+results. The job directory and the watched directory may not be inside one
+another, because the watcher also looks in subdirectories.
+
+<a id="watch-stopping"></a>
+### Stopping and next steps
+
+While monitoring, batches and the live tables are in `<job>/watch`. Stopping
+then does the following:
+
+1. Finishes the current batch and any files waiting for a full batch. Other
+   files still in the queue are left for the next watch of the job.
+2. Merges all completed batches into the job's standard folders: `reads/`,
+   including the input as `reads/reads.input.fq.gz`, and `annotation/`.
+3. Runs EM and the report on the merged data, writing
+   `results/reports/stats_report.html` and the other standard outputs. With no
+   hits, the report holds QC statistics only.
+
+EM runs from scratch here, as in `emtrace run`, so the final numbers can differ
+slightly from the live ones.
+
+The job can then continue like any other. In the GUI, select **assembly**,
+**report**, **plot**, **pack** or **clean** in the step list and click **Run**.
+Preprocessing, host filtering and annotation are disabled for a watch job,
+because the next merge would replace their results. On the command line, point
+`emtrace run` at the same job:
+
+```bash
+emtrace run \
+  -1 <res>/run01/reads/reads.input.fq.gz \
+  -s run01 -r <res> \
+  -p ass,rep,plot,pack,clean
+```
+
+To add more data, start watching the same job again. Earlier batches are
+reloaded, files already processed are skipped, and files that arrived in the
+meantime are picked up, whatever the *Process files already in the directory*
+setting or `--scan-existing` say. Stopping then updates the results from all
+batches. If EMtrace was closed without stopping, for example after a crash, do
+the same: start watching the job and stop it to merge its batches.
+
+A batch that fails is reported and left out of the results, and its files are
+processed again the next time the job is watched.
+
+**clean** removes the batches' intermediate files, but keeps what continuing the
+watch needs. Merged reads exist only in `reads/`, so clearing them from the
+Dashboard cannot be undone.
 
 ---
 

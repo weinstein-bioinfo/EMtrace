@@ -9,7 +9,7 @@ description = "Offline, real-time nanopore metagenomics: read classification, EM
 readme = "README.md"
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE", "COPYRIGHT"]
-authors = [{ name = "Ilja Weinstein" }]
+authors = [{ name = "Ilya Weinstein" }]
 requires-python = ">=3.10"
 dependencies = [
     "biopython>=1.81",

@@ -1362,8 +1362,9 @@ preliminary and verify with a standard (post-run) analysis.</p>
 <p><code>emtrace watch</code> monitors a directory for new FASTQ files
 (e.g. MinKNOW output) and processes each batch through preprocessing,
 host filtering, annotation, and EM abundance estimation, updating a
-running abundance table. A final report is generated when monitoring is
-stopped (Ctrl+C).</p>
+running abundance table. Stopping (Ctrl+C) merges the results into the
+job and writes the report; see <a href="#watch-stopping">Stopping and
+next steps</a>.</p>
 <div class="sourceCode" id="cb18"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="ex">emtrace</span> watch <span class="dt">\</span></span>
 <span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--dir</span>   /path/to/minknow/output <span class="dt">\</span></span>
 <span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--sample</span> run01 <span class="dt">\</span></span>
@@ -1383,15 +1384,68 @@ also rescanned every 30 s, which catches files whose change
 notifications were missed (e.g. on network drives). A file that was
 already processed is not processed again after a rename. FASTQ files
 already in the directory when monitoring starts are ignored unless
-<code>--scan-existing</code> is given.</p>
+<code>--scan-existing</code> is given, except when an earlier watch of
+the job is continued (see below).</p>
 <p><strong>In the GUI</strong>, the <strong>Realtime</strong> tab runs
-the same monitor with the settings of the job that is open. Set the
-<em>Watch directory</em> and <em>Output directory</em>, the <em>Batch
-size</em> (files per batch) and <em>Debounce</em> (seconds), then click
-<strong>▶ Start Watching</strong>; <strong>■ Stop</strong> ends
-monitoring and writes the final report. The tab shows the current batch,
-total reads, files and taxa detected, and a <em>Top taxa</em> list by EM
-abundance, with species names (hover for the taxid).</p>
+the same monitor. Set the <em>Watch directory</em>, the <em>Batch
+size</em> (files per batch) and <em>Debounce</em> (seconds), choose
+whether to <em>Process files already in the directory</em> (on by
+default), and click <strong>▶ Start Watching</strong>. The tab shows the
+current batch, total reads, files and taxa detected, and a <em>Top
+taxa</em> list by EM abundance, with species names (hover for the
+taxid). <strong>■ Stop</strong> ends monitoring after the current
+batch.</p>
+<p>Watching needs a job of its own, because its results are merged into
+the job. If the open job is a watch job, the tab continues it.
+Otherwise, <strong>▶ Start Watching</strong> asks for a name and output
+directory and creates one, without asking for input reads. A job with
+its own input reads or results is never overwritten. The same applies to
+<code>emtrace watch</code>, which uses the job directory
+<code>&lt;res&gt;/&lt;sample&gt;</code> and stops with an error if that
+job has its own input or results. The job directory and the watched
+directory may not be inside one another, because the watcher also looks
+in subdirectories.</p>
+<p><a id="watch-stopping"></a></p>
+<h3 id="stopping-and-next-steps">Stopping and next steps</h3>
+<p>While monitoring, batches and the live tables are in
+<code>&lt;job&gt;/watch</code>. Stopping then does the following:</p>
+<ol type="1">
+<li>Finishes the current batch and any files waiting for a full batch.
+Other files still in the queue are left for the next watch of the
+job.</li>
+<li>Merges all completed batches into the job&#39;s standard folders:
+<code>reads/</code>, including the input as
+<code>reads/reads.input.fq.gz</code>, and <code>annotation/</code>.</li>
+<li>Runs EM and the report on the merged data, writing
+<code>results/reports/stats_report.html</code> and the other standard
+outputs. With no hits, the report holds QC statistics only.</li>
+</ol>
+<p>EM runs from scratch here, as in <code>emtrace run</code>, so the
+final numbers can differ slightly from the live ones.</p>
+<p>The job can then continue like any other. In the GUI, select
+<strong>assembly</strong>, <strong>report</strong>,
+<strong>plot</strong>, <strong>pack</strong> or <strong>clean</strong>
+in the step list and click <strong>Run</strong>. Preprocessing, host
+filtering and annotation are disabled for a watch job, because the next
+merge would replace their results. On the command line, point
+<code>emtrace run</code> at the same job:</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="ex">emtrace</span> run <span class="dt">\</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">-1</span> <span class="op">&lt;</span>res<span class="op">&gt;</span>/run01/reads/reads.input.fq.gz <span class="dt">\</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">-s</span> run01 <span class="at">-r</span> <span class="op">&lt;</span>res<span class="op">&gt;</span> <span class="dt">\</span></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">-p</span> ass,rep,plot,pack,clean</span></code></pre></div>
+<p>To add more data, start watching the same job again. Earlier batches
+are reloaded, files already processed are skipped, and files that
+arrived in the meantime are picked up, whatever the <em>Process files
+already in the directory</em> setting or <code>--scan-existing</code>
+say. Stopping then updates the results from all batches. If EMtrace was
+closed without stopping, for example after a crash, do the same: start
+watching the job and stop it to merge its batches.</p>
+<p>A batch that fails is reported and left out of the results, and its
+files are processed again the next time the job is watched.</p>
+<p><strong>clean</strong> removes the batches&#39; intermediate files, but
+keeps what continuing the watch needs. Merged reads exist only in
+<code>reads/</code>, so clearing them from the Dashboard cannot be
+undone.</p>
 <hr />
 <p><a id="citing-emtrace"></a></p>
 <h2 id="citing-emtrace">Citing EMtrace</h2>

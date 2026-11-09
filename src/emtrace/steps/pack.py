@@ -5,7 +5,7 @@ output files (reports, tables, figures, assemblies, viral reads) in the
 parent directory of ``sample.reports_dir``.
 
 CleanStep: removes intermediate BAM, SAM and temp files that are no
-longer needed after packing.
+longer needed after packing, and the intermediates of watch-mode batches.
 
 Configuration (from ``config.output``):
     pack_reads    — include all reads/ directory (default 0 / False)
@@ -19,6 +19,13 @@ import tarfile
 from pathlib import Path
 from typing import TYPE_CHECKING, List
 
+from emtrace.realtime.finalize import (
+    BATCH_INPUT,
+    BATCH_MANIFEST,
+    batch_dirs,
+    completed_batches,
+    resume_tables,
+)
 from emtrace.steps import StepName, register_step
 from emtrace.steps.base import PipelineStep
 
@@ -178,6 +185,27 @@ class CleanStep(PipelineStep):
         # Stale assembler working directories (legacy)
         for dname in ("Roadmaps", "assembler_out"):
             _try_rmtree(job.output_dir / dname)
+
+        # Watch batches: only what a later watch of the job reloads is kept.
+        # Batches not merged yet still hold the job's only copy of their reads;
+        # batches that failed are redone by a later watch.
+        watch_dir = job.watch_dir
+        completed = set(completed_batches(watch_dir))
+        for batch in batch_dirs(watch_dir):
+            if batch not in completed:
+                _try_rmtree(batch)
+            elif not (batch / BATCH_INPUT).exists():
+                keep = {batch / BATCH_MANIFEST, *resume_tables(batch)}
+                for p in batch.rglob("*"):
+                    if p.is_file() and p not in keep:
+                        _try_unlink(p)
+                # Deepest first, so a parent is empty once its children are gone
+                for d in sorted(
+                    (p for p in batch.rglob("*") if p.is_dir()),
+                    key=lambda p: len(p.parts), reverse=True,
+                ):
+                    if not any(d.iterdir()):
+                        d.rmdir()
 
         self.logger.info("Clean: removed %d items", removed)
         return job

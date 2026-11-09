@@ -45,6 +45,12 @@ Article in preparation.
 
 ## Installation
 
+**Which version to use:** For new analyses, with the command line or the desktop
+GUI, use the [latest release](https://github.com/weinstein-bioinfo/EMtrace/releases/latest)
+(v1.0.3 or later), which includes updates from desktop testing. v1.0.0 is the
+version benchmarked in the manuscript. Use it, with the configurations in
+EMtrace-benchmark, only to reproduce those results.
+
 From source (Python ≥ 3.10), with the external tools from Bioconda:
 
 ```bash
@@ -55,9 +61,9 @@ pip install "git+https://github.com/weinstein-bioinfo/EMtrace.git@v1.0.3"
 emtrace --help
 ```
 
-Self-contained macOS bundles (Apple silicon and Intel) are attached to each
-[release](https://github.com/weinstein-bioinfo/EMtrace/releases). They are not
-signed, so macOS warns on first launch; see
+Self-contained macOS bundles (Apple silicon and Intel) are attached to
+[releases](https://github.com/weinstein-bioinfo/EMtrace/releases) from v1.0.3
+onward. They are not signed, so macOS warns on first launch; see
 [Opening the app](docs/UserGuide.v1.0.md#opening-the-app).
 
 Windows is not supported in this version; Windows support is planned for a future

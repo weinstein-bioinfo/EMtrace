@@ -20,6 +20,7 @@ from emtrace.utils.paths import ensure_dir
 logger = logging.getLogger(__name__)
 
 JOB_MANIFEST_NAME = "job.yaml"
+WATCH_DIRNAME = "watch"
 
 
 @dataclass
@@ -104,6 +105,11 @@ class PipelineJob:
     @property
     def log_path(self) -> Path:
         return self.output_dir / self.logs_dir
+
+    @property
+    def watch_dir(self) -> Path:
+        """Working directory of real-time monitoring (live tables and batches)."""
+        return self.output_dir / WATCH_DIRNAME
 
     def init_dirs(self) -> None:
         """Create the standard output directory tree and write the job manifest."""

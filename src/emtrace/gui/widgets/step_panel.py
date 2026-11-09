@@ -288,6 +288,28 @@ class StepPanel(QWidget):
         finally:
             self._tree.blockSignals(False)
 
+    # A watch job's reads and annotation come from its batches: results of
+    # re-running these steps would be discarded by the next watch's merge.
+    _WATCH_LOCKED_STEPS = (
+        StepName.PORE,
+        StepName.CHOP,
+        StepName.FLT,
+        StepName.ANN,
+    )
+
+    def apply_watch_job(self) -> None:
+        """Disable the steps a watch job gets from its batches.
+
+        Call after :meth:`apply_platform`, which re-enables them for other jobs.
+        """
+        self._tree.blockSignals(True)
+        try:
+            for step in self._WATCH_LOCKED_STEPS:
+                self._platform_disabled.add(step.value)
+                self.set_step_enabled(step.value, False)
+        finally:
+            self._tree.blockSignals(False)
+
     # ==================================================================
     # Event handlers
     # ==================================================================

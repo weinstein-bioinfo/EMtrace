@@ -814,7 +814,10 @@ def _do_remove(cfg: EMtraceConfig, key: str) -> None:
 @click.option(
     "-r", "--res", "res_dir", default=None,
     type=click.Path(),
-    help="Root output directory [current dir].",
+    help=(
+        "Root output directory [current dir]. The job is RES/SAMPLE; "
+        "a job watched before continues where it ended."
+    ),
 )
 # --- Annotation ---
 @click.option(
@@ -903,8 +906,10 @@ def watch(
     (e.g. MinKNOW output), processes each batch through preprocessing,
     host filtering, annotation, and EM abundance estimation.
 
-    Press Ctrl+C to stop — a final report will be generated from
-    all accumulated data.
+    Batches go to RES/SAMPLE/watch. Press Ctrl+C to stop: the batches are
+    merged into RES/SAMPLE and EM and the report run on them, after which
+    `emtrace run` steps such as assembly can use the results. Watching the
+    same job again continues from them, skipping files already processed.
 
     \b
     Example:
@@ -935,6 +940,29 @@ def watch(
     # Output directory
     out_root = Path(res_dir) if res_dir else Path.cwd()
     output_dir = out_root / sample_name
+
+    from emtrace.realtime.finalize import (
+        completed_batches,
+        dirs_overlap,
+        watch_conflict,
+    )
+
+    conflict = watch_conflict(output_dir)
+    if conflict:
+        log.error(
+            "%s cannot be used for watching: %s. Choose another --sample or --res.",
+            output_dir, conflict,
+        )
+        sys.exit(1)
+    if dirs_overlap(watch_dir, output_dir):
+        log.error(
+            "The job directory %s and watch directory %s overlap: the watcher "
+            "would process the job's own batch files as new input.",
+            output_dir, watch_dir,
+        )
+        sys.exit(1)
+    if completed_batches(output_dir / "watch"):
+        click.echo(f"Continuing the earlier watch in {output_dir}")
 
     # Stop event for graceful shutdown
     stop_event = threading.Event()
@@ -984,7 +1012,7 @@ def watch(
 
     state = run_realtime(
         watch_dir=watch_dir,
-        output_dir=output_dir,
+        job_dir=output_dir,
         config=cfg,
         job_name=sample_name,
         ann1=ann1 or cfg.annotation.ann1,
@@ -1014,6 +1042,9 @@ def watch(
     if snap["log_L"] is not None:
         click.echo(f"Final EM logL: {snap['log_L']:.4f}")
     click.echo(f"Results in: {output_dir}")
+    report = output_dir / "results" / "reports" / "stats_report.html"
+    if report.exists():
+        click.echo(f"Report: {report}")
 
 
 # ------------------------------------------------------------------

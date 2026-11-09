@@ -13,6 +13,11 @@ updates EM abundance estimates incrementally.
 Option B strategy (from ROADMAP):
   Warm-start EM from previous F(t) estimates rather than
   re-running from scratch each time.
+
+Batches and live tables live in ``<job>/watch``. :meth:`BatchProcessor.finalize`
+merges them into the job's standard layout (see ``realtime/finalize.py``), so
+the other pipeline steps can use the results, and a later watch of the same job
+continues from them (:meth:`BatchProcessor.resume`).
 """
 
 from __future__ import annotations
@@ -23,7 +28,7 @@ import shutil
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import (Callable, Dict, List, Optional, Sequence)
+from typing import (Callable, Dict, List, Optional, Sequence, Tuple)
 
 import pandas as pd
 
@@ -32,6 +37,17 @@ from emtrace.core.config import EMtraceConfig
 from emtrace.core.pipeline import Pipeline
 from emtrace.core.pipelinejob import PipelineJob
 from emtrace.models.annotation import (read_annotation_tsv, write_annotation_tsv)
+from emtrace.realtime.finalize import (
+    MERGED_INPUT,
+    FileId,
+    completed_batches,
+    merge_batches_into_job,
+    next_batch_number,
+    publish_annotations,
+    read_batch_manifest,
+    write_batch_manifest,
+)
+from emtrace.realtime.watcher import FastqWatcher
 from emtrace.steps import StepName
 from emtrace.steps.report import ReportStep
 from emtrace.utils.paths import ensure_dir
@@ -138,8 +154,10 @@ class BatchProcessor:
     ----------
     config : EMtraceConfig
         Pipeline configuration.
-    output_dir : Path
-        Root output directory for real-time results.
+    job_dir : Path
+        The job's output directory. Batches and live tables go to
+        ``job_dir/watch`` (``self.output_dir``); finalize() merges them
+        into ``job_dir``.
     job_name : str
         PipelineJob name / label.
     ann1 : str
@@ -161,7 +179,7 @@ class BatchProcessor:
     def __init__(
         self,
         config: EMtraceConfig,
-        output_dir: Path,
+        job_dir: Path,
         job_name: str = "realtime",
         *,
         ann1: str = "",
@@ -173,7 +191,18 @@ class BatchProcessor:
         run_report: bool = False,
     ) -> None:
         self.config = config
-        self.output_dir = Path(output_dir)
+        job_dir = Path(job_dir)
+        merged_input = job_dir / "reads" / MERGED_INPUT
+        self.job = PipelineJob(
+            name=job_name,
+            input_reads=merged_input if merged_input.exists() else None,
+            output_dir=job_dir,
+            results_dir="results",
+            num_threads=config.runtime.num_threads,
+            profile=config.active_profile,
+        )
+        self.job.init_dirs()
+        self.output_dir = self.job.watch_dir
         self.job_name = job_name
         self.ann1 = ann1
         self.ann2 = ann2
@@ -198,9 +227,53 @@ class BatchProcessor:
         ensure_dir(self.output_dir / "batches")
         ensure_dir(self.output_dir / "results")
 
+        # Failed batches keep their directory, so numbers are never reused
+        self.next_batch = next_batch_number(self.output_dir)
+
     # ----------------------------------------------------------
     # Public API
     # ----------------------------------------------------------
+    def resume(self) -> List[Tuple[Path, Optional[FileId]]]:
+        """Reload state from earlier watch sessions of this job.
+
+        Returns the source files of the completed batches, as
+        ``(path, identity)`` for ``FastqWatcher(already_processed=...)``.
+        Empty when there is nothing to resume.
+        """
+        batches = completed_batches(self.output_dir)
+        if not batches:
+            return []
+
+        frames: List[pd.DataFrame] = []
+        processed: List[Tuple[Path, Optional[FileId]]] = []
+        n_reads = 0
+        for batch in batches:
+            meta = read_batch_manifest(batch)
+            n_reads += int(meta.get("n_reads", 0))
+            for entry in meta.get("files", []):
+                fid = entry.get("id")
+                processed.append((Path(entry["path"]), tuple(fid) if fid else None))
+            annot = self._read_batch_annotations(PipelineJob(output_dir=batch))
+            if not annot.empty:
+                frames.append(annot)
+
+        em_table = ReportStep._read_em_table(self._em_prob_path)
+        with self.state._lock:
+            self.state.batch_count = len(batches)
+            self.state.total_reads = n_reads
+            self.state.total_files = len(processed)
+            if frames:
+                self.state.annotations = pd.concat(frames, ignore_index=True)
+            if em_table is not None:
+                self.state.F = dict(zip(em_table["taxid"], em_table["prob"]))
+        self._name_top_taxa()
+
+        logger.info(
+            "Resuming watch: %d earlier batch(es), %d file(s), %d read(s)",
+            len(batches), len(processed), n_reads,
+        )
+        return processed
+
     def process_files( self, fastq_files: Sequence[Path]) -> RealtimeState:
         """Process one or more FASTQ files as a batch.
 
@@ -214,13 +287,22 @@ class BatchProcessor:
           7. Write updated outputs
           8. Report (if enabled)
 
-        Returns the updated state.
+        Returns the updated state. Raises if the batch fails: it then has no
+        ``batch.json``, so it is left out of the results and its files are
+        processed again by a later watch of this job.
         """
-        batch_num = self.state.batch_count + 1
+        batch_num = self.next_batch
+        self.next_batch += 1
         batch_dir = self.output_dir / "batches" / f"batch_{batch_num:04d}"
         ensure_dir(batch_dir)
 
         logger.info("=== BATCH %d: %d file(s) ===", batch_num, len(fastq_files))
+
+        # Identity before processing, as recorded by the watcher
+        sources = [
+            (Path(fq).resolve(), FastqWatcher._file_id(Path(fq)))
+            for fq in fastq_files
+        ]
 
         # --- Concatenate input files ---
         batch_fq = batch_dir / "batch_input.fq.gz"
@@ -230,15 +312,13 @@ class BatchProcessor:
         job = self._make_batch_job( batch_fq, batch_dir, batch_num )
 
         # --- Run pre + flt + ann steps ---
-        steps = self._batch_steps()
-        try:
-            self.pipeline.run(job, steps)
-        except Exception as exc:
-            logger.error( "Batch %d pipeline failed: %s", batch_num, exc )
-            return self.state
+        self.pipeline.run(job, self._batch_steps())
 
         # --- Count reads processed ---
         n_reads = self._count_reads(batch_fq)
+
+        # --- The batch is complete from here on ---
+        write_batch_manifest(batch_dir, batch_num, sources, n_reads)
 
         # --- Merge batch annotations ---
         batch_annot = self._read_batch_annotations(job)
@@ -254,7 +334,7 @@ class BatchProcessor:
 
         # --- Report (optional) ---
         if self.run_report:
-            self._run_report_step(job)
+            self._run_report_step()
 
         # --- Callback ---
         if self.on_batch_complete:
@@ -278,19 +358,40 @@ class BatchProcessor:
         """Process a single FASTQ file."""
         return self.process_files([fastq])
 
-    def generate_final_report(self) -> None:
-        """Generate a final report from accumulated data."""
-        if self.state.annotations.empty:
-            logger.warning( "No annotations — skipping final report" )
-            return
+    def finalize(self) -> bool:
+        """Merge the batches into the job, then run EM and the report on it.
 
-        sample = self._make_report_job()
-        # Stats are produced inside the report step (StepName.STA no longer exists).
-        report_steps = [StepName.REP]
-        available = [ s for s in report_steps if s in self.pipeline._steps ]
-        if available:
-            self.pipeline.run(sample, available)
-            logger.info("Final report generated")
+        EM runs from scratch on the merged tables: the live estimate is
+        warm-started, skips ``prune_min_reads`` and mixes annot2/annot1 per
+        batch, whereas this one matches ``run -p em``. The final numbers can
+        therefore differ slightly from the live ones. The report runs even if
+        EM fails, and is QC-only when there are no hits.
+
+        Returns False if no batch completed (nothing to report). Raises if the
+        merge or the report fails.
+        """
+        if not completed_batches(self.output_dir):
+            logger.warning("No completed batches — no report generated")
+            return False
+
+        merge_batches_into_job(self.job, self.output_dir)
+        try:
+            self.job = self.pipeline.run(self.job, [StepName.EM])
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Final EM failed, reporting without it: %s", exc)
+            # An EM table from an earlier session would no longer match the reads
+            for key, name in (
+                ("em_taxid_prob", "EM.taxid_prob.tsv"),
+                ("em_taxid_prob_byiter", "EM.taxid_prob.byiter.tsv"),
+            ):
+                (self.job.reports_dir / name).unlink(missing_ok=True)
+                self.job.files.pop(key, None)
+        self.job = self.pipeline.run(self.job, [StepName.REP])
+        logger.info(
+            "Final report -> %s",
+            self.job.reports_dir / "reports" / "stats_report.html",
+        )
+        return True
 
     # ----------------------------------------------------------
     # Internal: PipelineJob construction
@@ -312,37 +413,8 @@ class BatchProcessor:
             ann1=self.ann1,
             ann2=self.ann2,
             anns=self.anns,
+            bgfilter=self.hostgen,
         )
-        return job
-
-    def _make_report_job(self) -> PipelineJob:
-        """Build a PipelineJob pointing to accumulated data."""
-        job = PipelineJob(
-            name=self.job_name,
-            output_dir=self.output_dir,
-            results_dir="results",
-            num_threads=self.config.runtime.num_threads,
-            profile=self.config.active_profile,
-        )
-        job.init_dirs()
-
-        # Write accumulated annotation for report step
-        annot_path = self.output_dir / "annot1.tsv"
-        if not self.state.annotations.empty:
-            write_annotation_tsv(
-                self.state.annotations, annot_path,
-            )
-            job.set_file("annot1", annot_path)
-
-        # Write EM probs for report step
-        if self.state.F:
-            em_path = (
-                self.output_dir / "results"
-                / "EM.taxid_prob.tsv"
-            )
-            self._write_em_tsv(self.state.F, em_path, self._em_n_queries())
-            job.set_file("em_taxid_prob", em_path)
-
         return job
 
     # ----------------------------------------------------------
@@ -357,14 +429,19 @@ class BatchProcessor:
             steps.insert(2, StepName.FLT)
         return steps
 
-    def _run_report_step(self, sample: PipelineJob) -> None:
-        """Run report step using accumulated data."""
+    def _run_report_step(self) -> None:
+        """Run the report on the job's data so far (``--report`` after a batch).
+
+        Reads are merged only at finalize(), so this report's tables are
+        current but it has no FASTQ statistics yet.
+        """
         try:
-            report_sample = self._make_report_job()
-            if StepName.REP in self.pipeline._steps:
-                self.pipeline._steps[StepName.REP].execute(
-                    report_sample,
+            publish_annotations(self.job, self.output_dir)
+            if self._em_prob_path.exists():
+                shutil.copyfile(
+                    self._em_prob_path, self.job.reports_dir / "EM.taxid_prob.tsv",
                 )
+            self.job = self.pipeline.run(self.job, [StepName.REP])
         except Exception as exc:
             logger.warning(
                 "Report step failed: %s", exc,
@@ -374,34 +451,17 @@ class BatchProcessor:
     # Internal: annotation merging
     # ----------------------------------------------------------
     def _read_batch_annotations( self, sample: PipelineJob ) -> pd.DataFrame:
-        """Read annotation tables from a batch sample."""
-        frames = []
-        for key in ("annot2", "annot1"):
-            p = sample.get_file(key)
-            if p and p.exists():
+        """Table of a batch for the live estimate: annot2, else annot1."""
+        for name in ("annot2.tsv", "annot1.tsv"):
+            p = sample.annotation_dir / name
+            if p.exists() and p.stat().st_size > 0:
                 try:
                     df = read_annotation_tsv(p)
-                    if not df.empty:
-                        frames.append(df)
-                except Exception:
-                    pass
-                break  # prefer annot2, fallback annot1
-
-        if not frames:
-            # Try disk paths
-            for name in ("annot2.tsv", "annot1.tsv"):
-                p = sample.output_dir / name
-                if p.exists():
-                    try:
-                        df = read_annotation_tsv(p)
-                        if not df.empty:
-                            frames.append(df)
-                    except Exception:
-                        pass
-                    break
-
-        if frames:
-            return pd.concat(frames, ignore_index=True)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Could not read %s: %s", p, exc)
+                    continue
+                if not df.empty:
+                    return df
         return pd.DataFrame()
 
     # ----------------------------------------------------------
@@ -665,7 +725,7 @@ class BatchProcessor:
 
 def run_realtime(
     watch_dir: str | Path,
-    output_dir: str | Path,
+    job_dir: str | Path,
     config: EMtraceConfig,
     job_name: str = "realtime",
     *,
@@ -688,8 +748,8 @@ def run_realtime(
     ----------
     watch_dir : Path
         Directory to monitor for FASTQ files.
-    output_dir : Path
-        Root output directory.
+    job_dir : Path
+        The job's output directory; see :class:`BatchProcessor`.
     config : EMtraceConfig
         Pipeline configuration.
     job_name : str
@@ -701,7 +761,9 @@ def run_realtime(
     debounce : float
         Seconds to wait after file stops changing.
     scan_existing : bool
-        Process FASTQ files already in the directory.
+        Process FASTQ files already in the directory. Always on when
+        resuming an earlier watch of this job, to catch up on files that
+        arrived while stopped.
     on_batch_complete : callback
         Called after each batch.
     stop_event : threading.Event
@@ -714,20 +776,12 @@ def run_realtime(
     RealtimeState
         Final accumulated state.
     """
-    from emtrace.realtime.watcher import FastqWatcher
-
     if stop_event is None:
         stop_event = threading.Event()
 
-    watcher = FastqWatcher(
-        watch_dir,
-        debounce_seconds=debounce,
-        scan_existing=scan_existing,
-    )
-
     processor = BatchProcessor(
         config=config,
-        output_dir=Path(output_dir),
+        job_dir=Path(job_dir),
         job_name=job_name,
         ann1=ann1,
         ann2=ann2,
@@ -737,6 +791,21 @@ def run_realtime(
         on_batch_complete=on_batch_complete,
         run_report=run_report,
     )
+    processed = processor.resume()
+
+    watcher = FastqWatcher(
+        watch_dir,
+        debounce_seconds=debounce,
+        scan_existing=scan_existing or bool(processed),
+        already_processed=processed,
+    )
+
+    def _process(files: List[Path]) -> None:
+        """Process a batch; a failed batch does not end the watch."""
+        try:
+            processor.process_files(files)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Batch failed: %s", exc)
 
     watcher.start()
     batch_buffer: List[Path] = []
@@ -750,20 +819,27 @@ def run_realtime(
             batch_buffer.append(path)
 
             if len(batch_buffer) >= batch_size:
-                processor.process_files(batch_buffer)
+                _process(batch_buffer)
                 batch_buffer.clear()
     except KeyboardInterrupt:
         logger.info("Interrupted — shutting down")
     finally:
+        watcher.stop()
+
         # Process remaining files
         if batch_buffer:
             logger.info(  "Processing %d remaining files", len(batch_buffer) )
-            processor.process_files(batch_buffer)
+            _process(batch_buffer)
             batch_buffer.clear()
+        if watcher.queued_count:
+            logger.info(
+                "%d queued file(s) not processed; a later watch of this job "
+                "picks them up", watcher.queued_count,
+            )
 
-        # Generate final report
-        processor.generate_final_report()
-
-        watcher.stop()
+        try:
+            processor.finalize()
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Final report failed: %s", exc)
 
     return processor.state

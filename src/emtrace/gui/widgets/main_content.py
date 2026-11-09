@@ -100,6 +100,7 @@ class MainContentStack(QWidget):
         """Propagate a new (or cleared) job to all sub-pages."""
         self.dashboard.set_job(job)
         self.assembly_view.set_job(job)
+        self.realtime_panel.set_job(job)
 
         if job is not None:
             out = job.output_dir

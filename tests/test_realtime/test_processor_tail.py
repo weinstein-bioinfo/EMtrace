@@ -32,8 +32,8 @@ def cfg(tmp_path):
     return c
 
 
-def processor(cfg, out_dir):
-    return BatchProcessor(config=cfg, output_dir=out_dir, job_name="rt")
+def processor(cfg, job_dir):
+    return BatchProcessor(config=cfg, job_dir=job_dir, job_name="rt")
 
 
 # Six reads over three taxa: taxid 1 dominates, 2 and 3 are single-read tails.

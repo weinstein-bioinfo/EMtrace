@@ -481,7 +481,7 @@ class AssemblyViewWidget(QWidget):
         self._seg_combo.currentTextChanged.connect(self._on_segment_changed)
         tb.addWidget(self._seg_combo)
 
-        self._refresh_btn = QPushButton("⟳  Refresh")
+        self._refresh_btn = QPushButton("Refresh")
         self._refresh_btn.setFixedWidth(90)
         self._refresh_btn.clicked.connect(self._load_assembly)
         tb.addWidget(self._refresh_btn)
