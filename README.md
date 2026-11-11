@@ -41,14 +41,19 @@ Full documentation is available in [docs/UserGuide.v1.0.md](docs/UserGuide.v1.0.
 
 ## Citing EMtrace
 
-Article in preparation.
+If you use EMtrace, please cite:
+
+> Weinstein I, Smura T, Leppanen O, Krupińska M, Vauhkonen H, Sironen T, Grzybek M,
+> Vapalahti O, Kant R. EMtrace: offline nanopore metagenomics on a laptop for rapid
+> viral diagnostics, genome recovery and 16S profiling. *bioRxiv* (2026).
+> <https://doi.org/10.64898/2026.11.09.765303>
 
 ## Installation
 
 **Which version to use:** For new analyses, with the command line or the desktop
 GUI, use the [latest release](https://github.com/weinstein-bioinfo/EMtrace/releases/latest)
 (v1.0.3 or later), which includes updates from desktop testing. v1.0.0 is the
-version benchmarked in the manuscript. Use it, with the configurations in
+version benchmarked in the [preprint](https://doi.org/10.64898/2026.11.09.765303). Use it, with the configurations in
 EMtrace-benchmark, only to reproduce those results.
 
 From source (Python ≥ 3.10), with the external tools from Bioconda:

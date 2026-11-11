@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-message: "If you use this software, please cite it as below."
+message: "If you use this software, please cite the preprint given under preferred-citation."
 type: software
 title: "EMtrace"
 abstract: >-
@@ -55,3 +55,38 @@ keywords:
   - real-time sequencing
   - expectation-maximization
   - consensus assembly
+preferred-citation:
+  type: article
+  title: "EMtrace: offline nanopore metagenomics on a laptop for rapid viral diagnostics, genome recovery and 16S profiling"
+  authors:
+    - family-names: Weinstein
+      given-names: Ilya
+      orcid: "https://orcid.org/0000-0001-5988-0901"
+    - family-names: Smura
+      given-names: Teemu
+      orcid: "https://orcid.org/0000-0002-9187-3151"
+    - family-names: Leppanen
+      given-names: Onnia
+      orcid: "https://orcid.org/0009-0005-5763-827X"
+    - family-names: Krupińska
+      given-names: Martyna
+      orcid: "https://orcid.org/0000-0002-4447-9143"
+    - family-names: Vauhkonen
+      given-names: Hanna
+      orcid: "https://orcid.org/0000-0002-5708-6680"
+    - family-names: Sironen
+      given-names: Tarja
+      orcid: "https://orcid.org/0000-0002-2344-2755"
+    - family-names: Grzybek
+      given-names: Maciej
+      orcid: "https://orcid.org/0000-0002-8780-0304"
+    - family-names: Vapalahti
+      given-names: Olli
+      orcid: "https://orcid.org/0000-0003-2270-6824"
+    - family-names: Kant
+      given-names: Ravi
+      orcid: "https://orcid.org/0000-0003-3878-9775"
+  journal: bioRxiv
+  year: 2026
+  doi: "10.64898/2026.11.09.765303"
+  url: "https://doi.org/10.64898/2026.11.09.765303"
