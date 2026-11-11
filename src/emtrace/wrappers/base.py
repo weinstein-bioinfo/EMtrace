@@ -2,12 +2,12 @@
 
 import gzip
 import logging
-import shutil
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional, Sequence
 
 from emtrace.core.exceptions import DependencyError
+from emtrace.utils import wsl
 from emtrace.utils.shell import run as shell_run
 
 
@@ -30,10 +30,15 @@ class ToolWrapper(ABC):
     The wrapper checks tool availability at init and provides a
     ``run()`` method that logs commands, captures output, and raises
     ``ExternalToolError`` on failure.
+
+    On Windows a tool missing from PATH is looked up inside WSL; ``via_wsl``
+    is then True, ``_tool_path`` is a Linux path, and ``run()`` executes the
+    command through ``wsl.exe`` (see :mod:`emtrace.utils.wsl`).
     """
 
     tool_name: str = ""
     install_hint: str = ""
+    via_wsl: bool = False
 
     def __init__(
         self,
@@ -48,12 +53,27 @@ class ToolWrapper(ABC):
         self.last_stderr: str = ""
 
     def _check_tool(self) -> str:
-        """Verify the tool is on PATH; return its absolute path."""
-        path = shutil.which(self.tool_name)
-        if path is None:
-            raise DependencyError(self.tool_name, self.install_hint)
-        self.logger.debug("Found %s at %s", self.tool_name, path)
+        """Find the tool (PATH, then WSL on Windows); return its absolute path."""
+        found = wsl.locate_tool(self.tool_name)
+        if found is None:
+            raise DependencyError(self.tool_name, self._missing_hint())
+        path, self.via_wsl = found
+        self.logger.debug(
+            "Found %s at %s%s", self.tool_name, path, " (WSL)" if self.via_wsl else "",
+        )
         return path
+
+    def _missing_hint(self) -> str:
+        """Install hint for DependencyError, with the WSL route on Windows."""
+        if not wsl.IS_WINDOWS:
+            return self.install_hint
+        hint = (
+            f"install {self.tool_name} in the '{wsl.ENV_NAME}' conda environment "
+            "inside WSL (see docs/windows_install.md)"
+        )
+        if not wsl.is_available():
+            hint = "WSL was not found; " + hint
+        return hint
 
     @abstractmethod
     def _build_command(self, **kwargs) -> list[str]:
@@ -95,6 +115,7 @@ class ToolWrapper(ABC):
             stdin_data=stdin_data,
             timeout=timeout,
             tool_name=self.tool_name,
+            wsl=self.via_wsl,
         )
 
         self.last_stderr = result.stderr or ""

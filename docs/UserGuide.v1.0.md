@@ -111,9 +111,9 @@ Intel (`x86_64`) Macs are attached to each
 [GitHub release](https://github.com/weinstein-bioinfo/EMtrace/releases).
 They do not need a separate Python installation.
 
-Windows is not supported in this version; Windows support is planned for a future
-release. The [installation from source](#building-from-source) may work on Windows
-under WSL2 (Windows Subsystem for Linux), but this is untested.
+Windows support is experimental and not yet tested: EMtrace runs natively and
+uses WSL (Windows Subsystem for Linux) for the tools that have no Windows builds.
+See [EMtrace on Windows](https://github.com/weinstein-bioinfo/EMtrace/blob/main/docs/windows_install.md) for the setup.
 
 <a id="opening-the-app"></a>
 #### Opening the app

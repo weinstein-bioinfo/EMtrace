@@ -349,7 +349,7 @@ class Orfipy:
         sequences: dict[str, str],
         path: Path,
     ) -> None:
-        with open(path, "w", encoding="utf-8") as fh:
+        with open(path, "w", encoding="utf-8", newline="\n") as fh:
             for orf in orfs:
                 seq = sequences.get(orf.contig, "")
                 if not seq:
@@ -365,7 +365,7 @@ class Orfipy:
         sequences: dict[str, str],
         path: Path,
     ) -> None:
-        with open(path, "w", encoding="utf-8") as fh:
+        with open(path, "w", encoding="utf-8", newline="\n") as fh:
             for orf in orfs:
                 seq = sequences.get(orf.contig, "")
                 if not seq:

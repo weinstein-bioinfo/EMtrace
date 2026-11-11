@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
 from emtrace.wrappers.base import ToolWrapper, count_fastq_reads
-from emtrace.utils.shell import run_shell
+from emtrace.utils.shell import run_shell, shell_path
 
 if TYPE_CHECKING:
     from emtrace.core.config import ChopperConfig
@@ -87,16 +87,16 @@ class Chopper(ToolWrapper):
             params += f" --trim {trim}"
 
         if str(input_fq).endswith(".gz"):
-            cat_cmd = f"{gzip_cmd} -dc {input_fq}"
+            cat_cmd = f"{gzip_cmd} -dc {shell_path(input_fq)}"
         else:
-            cat_cmd = f"cat {input_fq}"
+            cat_cmd = f"cat {shell_path(input_fq)}"
 
-        stderr_redirect = f" 2>{log_file}" if log_file else ""
+        stderr_redirect = f" 2>{shell_path(log_file)}" if log_file else ""
 
         cmd = (
             f"{cat_cmd} | "
-            f"{self._tool_path} {params} -t {self.num_threads}{stderr_redirect} | "
-            f"{gzip_cmd} -c > {output_fq}"
+            f"{shell_path(self._tool_path)} {params} -t {self.num_threads}{stderr_redirect} | "
+            f"{gzip_cmd} -c > {shell_path(output_fq)}"
         )
 
         n_in = count_fastq_reads(input_fq)

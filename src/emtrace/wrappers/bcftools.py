@@ -14,7 +14,8 @@ from pathlib import Path
 from typing import Optional
 
 from emtrace.wrappers.base import ToolWrapper
-from emtrace.utils.shell import run_shell
+from emtrace.utils import wsl
+from emtrace.utils.shell import run_shell, shell_path
 
 
 class Bcftools(ToolWrapper):
@@ -28,11 +29,11 @@ class Bcftools(ToolWrapper):
 
     def has_mpileup_preset(self, preset: str) -> bool:
         """True if this bcftools knows the ``mpileup -X`` profile *preset*."""
-        return preset in _mpileup_presets(self._tool_path)
+        return preset in _mpileup_presets(self._tool_path, self.via_wsl)
 
     def version(self) -> str:
         """The bcftools version string, e.g. ``"1.21"`` (empty if unknown)."""
-        return _bcftools_version(self._tool_path)
+        return _bcftools_version(self._tool_path, self.via_wsl)
 
     def mpileup_call(
         self,
@@ -71,19 +72,21 @@ class Bcftools(ToolWrapper):
         t = str(self.num_threads)
         baq = "-B " if no_baq else ""
         xopt = f"-X {preset} " if preset else ""
+        tool = shell_path(self._tool_path)
+        ref_q = shell_path(ref)
         cmd = (
-            f"{self._tool_path} mpileup "
+            f"{tool} mpileup "
             f"--threads {t} {xopt}{baq}-d{max_depth} -a INFO/AD -Ov "
-            f"-f {ref} {bam} | "
-            f"{self._tool_path} call "
+            f"-f {ref_q} {shell_path(bam)} | "
+            f"{tool} call "
             f"--threads {t} --ploidy {ploidy} -mv -Ov"
         )
         if split_multiallelic:
             cmd += (
-                f" | {self._tool_path} norm "
-                f"--threads {t} -m -any -f {ref} -Ov"
+                f" | {tool} norm "
+                f"--threads {t} -m -any -f {ref_q} -Ov"
             )
-        cmd += f" -o {output_vcf}"
+        cmd += f" -o {shell_path(output_vcf)}"
         run_shell(cmd, tool_name="bcftools")
         self.logger.info("Variant calling -> %s", output_vcf)
         return output_vcf
@@ -147,11 +150,19 @@ class Bcftools(ToolWrapper):
         return vcf
 
 
+def _probe(tool: str, via_wsl: bool, args: list[str]) -> subprocess.CompletedProcess:
+    """Run a short bcftools query (natively or in WSL); raises OSError/SubprocessError."""
+    return subprocess.run(
+        wsl.tool_argv(tool, via_wsl, args), capture_output=True, text=True,
+        encoding="utf-8", errors="replace", timeout=60, creationflags=wsl.NO_WINDOW,
+    )
+
+
 @lru_cache(maxsize=None)
-def _mpileup_presets(tool: str) -> frozenset:
+def _mpileup_presets(tool: str, via_wsl: bool = False) -> frozenset:
     """Profile names listed by ``bcftools mpileup -X list`` (empty on failure)."""
     try:
-        res = subprocess.run([tool, "mpileup", "-X", "list"], capture_output=True, text=True, timeout=30)
+        res = _probe(tool, via_wsl, ["mpileup", "-X", "list"])
     except (OSError, subprocess.SubprocessError):
         return frozenset()
     names = set()
@@ -162,9 +173,9 @@ def _mpileup_presets(tool: str) -> frozenset:
 
 
 @lru_cache(maxsize=None)
-def _bcftools_version(tool: str) -> str:
+def _bcftools_version(tool: str, via_wsl: bool = False) -> str:
     try:
-        out = subprocess.run([tool, "--version"], capture_output=True, text=True, timeout=30).stdout
+        out = _probe(tool, via_wsl, ["--version"]).stdout
     except (OSError, subprocess.SubprocessError):
         return ""
     first = out.splitlines()[0] if out else ""

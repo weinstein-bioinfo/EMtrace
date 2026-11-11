@@ -9,7 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from emtrace.wrappers.base import ToolWrapper
-from emtrace.utils.shell import run_shell
+from emtrace.utils.shell import run_shell, shell_path
 
 
 class Samtools(ToolWrapper):
@@ -182,7 +182,7 @@ class Samtools(ToolWrapper):
             args.extend(["-Q", str(min_map_quality)])
         args.append(str(bam))
         stdout = self.run(subcmd="depth", args=args)
-        output.write_text(stdout)
+        output.write_text(stdout, newline="\n")
         self.logger.info("Depth -> %s", output)
         return output
 
@@ -268,7 +268,7 @@ class Samtools(ToolWrapper):
         if cur_chrom is not None:                    # flush final interval
             intervals.append((cur_chrom, cur_start, cur_end))  # type: ignore[arg-type]
 
-        with open(output_bed, "w") as fh:
+        with open(output_bed, "w", newline="\n") as fh:
             for chrom, start, end in intervals:
                 fh.write(f"{chrom}\t{start}\t{end}\n")
 
@@ -322,7 +322,7 @@ class Samtools(ToolWrapper):
         def _open(p: Path):
             return gzip.open(p, "rt") if str(p).endswith(".gz") else open(p)
 
-        with _open(fasta) as fh_in, open(output, "w") as fh_out:
+        with _open(fasta) as fh_in, open(output, "w", newline="\n") as fh_out:
             header = ""
             seq_parts: list[str] = []
 
@@ -377,11 +377,12 @@ class Samtools(ToolWrapper):
         t = str(self.num_threads)
 
         # Piped sort -> fixmate -> sort -> output
+        tool = shell_path(self._tool_path)
         pipe_cmd = (
-            f"cat {input_sam} | "
-            f"{self._tool_path} sort -O bam -@ {t} -n | "
-            f"{self._tool_path} fixmate -@ {t} -m - - | "
-            f"{self._tool_path} sort -O bam -@ {t} -o {output_bam}"
+            f"cat {shell_path(input_sam)} | "
+            f"{tool} sort -O bam -@ {t} -n | "
+            f"{tool} fixmate -@ {t} -m - - | "
+            f"{tool} sort -O bam -@ {t} -o {shell_path(output_bam)}"
         )
         run_shell(pipe_cmd, tool_name="samtools")
 

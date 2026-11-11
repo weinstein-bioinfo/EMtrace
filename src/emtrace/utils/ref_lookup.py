@@ -9,14 +9,14 @@ DB(s) per accession instead of every configured database.
 Two backends:
 - FASTA-backed DBs (Minimap2): the original ``.fa``/``.fasta`` sits
   beside the ``.mmi`` index. Streamed via :func:`iter_fasta`.
-- BLAST/Diamond DBs: queried via ``blastdbcmd -db <path> -entry <acc>``.
-  Skipped silently if ``blastdbcmd`` is not on PATH (warned once).
+- BLAST/Diamond DBs: queried via ``blastdbcmd -db <path> -entry <acc>``
+  (native, or inside WSL on Windows). Skipped if ``blastdbcmd`` is not
+  installed (warned once).
 """
 
 from __future__ import annotations
 
 import logging
-import shutil
 from pathlib import Path
 from typing import Dict, Optional, Set, Tuple
 
@@ -24,6 +24,7 @@ import pandas as pd
 
 from emtrace.core.config import DatabaseEntry
 from emtrace.io.fasta import fasta_id_from_header, iter_fasta
+from emtrace.utils import wsl
 from emtrace.utils.shell import run as shell_run
 
 
@@ -76,17 +77,21 @@ def _extract_from_blastdb(
     accession: str,
     out_handle,
     logger: logging.Logger,
+    tool: Tuple[str, bool] = ("blastdbcmd", False),
 ) -> bool:
     """Extract a single accession from a BLAST DB via ``blastdbcmd``.
 
+    *tool* is ``(path, via_wsl)`` from :func:`emtrace.utils.wsl.locate_tool`.
     Returns True when the sequence was written to *out_handle*.
     """
+    tool_path, via_wsl = tool
     try:
         result = shell_run(
-            ["blastdbcmd", "-db", str(db_path), "-entry", accession, "-outfmt", "%f"],
+            [tool_path, "-db", str(db_path), "-entry", accession, "-outfmt", "%f"],
             check=False,
             capture=True,
             tool_name="blastdbcmd",
+            wsl=via_wsl,
         )
     except Exception as exc:  # noqa: BLE001
         logger.debug("blastdbcmd error for %s in %s: %s", accession, db_path, exc)
@@ -163,10 +168,11 @@ def lookup_local(
                 continue
 
             # BLAST/Diamond path
-            if shutil.which("blastdbcmd") is None:
+            blastdbcmd = wsl.locate_tool("blastdbcmd")
+            if blastdbcmd is None:
                 if not blastdbcmd_warned[0]:
                     logger.warning(
-                        "blastdbcmd not on PATH; cannot extract from BLAST DB '%s' (and any other BLAST DBs)",
+                        "blastdbcmd not found; cannot extract from BLAST DB '%s' (and any other BLAST DBs)",
                         db_name,
                     )
                     blastdbcmd_warned[0] = True
@@ -175,7 +181,7 @@ def lookup_local(
             db_path = Path(db_entry.db)
             extracted_here = 0
             for acc in sorted(wanted):
-                if _extract_from_blastdb(db_path, acc, out, logger):
+                if _extract_from_blastdb(db_path, acc, out, logger, blastdbcmd):
                     found.add(acc)
                     extracted_here += 1
             logger.info(

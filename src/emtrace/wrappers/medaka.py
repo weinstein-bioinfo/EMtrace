@@ -16,11 +16,11 @@ separate environment; ``path`` points at that environment's executable.
 
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 from typing import Optional
 
 from emtrace.core.exceptions import DependencyError, ExternalToolError
+from emtrace.utils import wsl
 from emtrace.wrappers.base import ToolWrapper
 
 
@@ -38,18 +38,27 @@ class Medaka(ToolWrapper):
         super().__init__(num_threads=num_threads, logger=logger)
 
     def _check_tool(self) -> str:
-        """Use the configured executable if given, else look on PATH."""
+        """Use the configured executable if given, else look on PATH.
+
+        On Windows a configured path starting with ``/`` is a Linux path
+        inside WSL (an executable, or the environment's ``bin`` directory).
+        """
         if self._path_hint:
+            if wsl.IS_WINDOWS and self._path_hint.startswith("/"):
+                for cand in (self._path_hint, self._path_hint.rstrip("/") + "/medaka"):
+                    if wsl.is_executable(cand):
+                        self.via_wsl = True
+                        return cand
+                raise DependencyError(
+                    self.tool_name, f"assembly.medaka.path not found in WSL: {self._path_hint}",
+                )
             p = Path(self._path_hint).expanduser()
             if p.is_dir():
                 p = p / "medaka"
             if p.is_file():
                 return str(p)
             raise DependencyError(self.tool_name, f"assembly.medaka.path not found: {p}")
-        path = shutil.which(self.tool_name)
-        if path is None:
-            raise DependencyError(self.tool_name, self.install_hint)
-        return path
+        return super()._check_tool()
 
     def _build_command(self, *, subcmd: list[str], args: list[str]) -> list[str]:
         return [self._tool_path, *subcmd, *args]

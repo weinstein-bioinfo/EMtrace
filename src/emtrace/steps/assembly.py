@@ -85,7 +85,7 @@ def build_vcf_filters(config: AssemblyConfig) -> tuple[str, str]:
         consensus = f"({consensus}) && ({config.vcf_flt})"
     return report, consensus
 from emtrace.utils.paths import ensure_dir
-from emtrace.utils.shell import run_shell
+from emtrace.utils.shell import run_shell, shell_path
 from emtrace.wrappers.bcftools import Bcftools
 from emtrace.wrappers.medaka import Medaka
 from emtrace.wrappers.minimap2 import Minimap2
@@ -406,7 +406,7 @@ class AssemblyStep(PipelineStep):
             chrom, start, end = line.split("\t")[:3]
             masked.setdefault(chrom, []).append((int(start), int(end)))
         n = 0
-        with open(out, "w") as fh:
+        with open(out, "w", newline="\n") as fh:
             for header, seq in iter_fasta(fasta):
                 chrom, pos = fasta_id_from_header(header), 0
                 for start, end in sorted(masked.get(chrom, [])) + [(len(seq), len(seq))]:
@@ -452,7 +452,7 @@ class AssemblyStep(PipelineStep):
                     seqlen += len(line.strip())
             if header is not None:
                 records.append((header, seqlen))
-        with open(output, "w") as out:
+        with open(output, "w", newline="\n") as out:
             for hdr, length in records:
                 out.write(hdr + "\n")
                 out.write("N" * length + "\n")
@@ -566,7 +566,7 @@ class AssemblyStep(PipelineStep):
                 if line.strip():
                     out.write(line.rstrip() + "\n")
 
-        with open(combined, "w") as out:
+        with open(combined, "w", newline="\n") as out:
             for path_str in refseqs:
                 p = Path(path_str)
                 self.logger.debug("Adding refseq: %s", p)
@@ -697,7 +697,7 @@ class AssemblyStep(PipelineStep):
         out = asm_dir / "refaccs.fetched.fa"
         tmp = asm_dir / "refaccs.fetch.tmp.fa"
         wanted, found = set(refaccs), set()
-        with open(out, "w") as fh:
+        with open(out, "w", newline="\n") as fh:
             for name in db_names:
                 need = wanted - found
                 if not need:
@@ -869,7 +869,7 @@ class AssemblyStep(PipelineStep):
             n=mm_cfg.n,
             sam_output=True,
         )
-        sam_out.write_text(stdout)
+        sam_out.write_text(stdout, newline="\n")
 
     def _tabix_index(self, vcf: Path) -> None:
-        run_shell(f"tabix -f {vcf}", tool_name="tabix")
+        run_shell(f"tabix -f {shell_path(vcf)}", tool_name="tabix")

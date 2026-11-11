@@ -255,7 +255,7 @@ class Minimap2(ToolWrapper):
         if output is not None:
             out_path = Path(output)
             stdout = self.run(**kwargs, log_file=log_file)
-            out_path.write_text(stdout)
+            out_path.write_text(stdout, newline="\n")
             self.logger.info("Wrote %s", out_path)
             return out_path
 
@@ -316,7 +316,7 @@ class Minimap2(ToolWrapper):
             str(db),
         ])
         try:
-            shell_run(cmd, check=True, tool_name="minimap2")
+            shell_run(cmd, check=True, tool_name="minimap2", wsl=self.via_wsl)
         except BaseException:
             # Remove the partial index on any failure (including interruption)
             tmp_path.unlink(missing_ok=True)
@@ -415,9 +415,11 @@ class Minimap2(ToolWrapper):
             cmd.extend(["-s", str(s)])
         cmd.extend([str(effective_db), str(query)])
 
-        result = shell_run(cmd, check=True, capture=True, tool_name="minimap2")
+        result = shell_run(
+            cmd, check=True, capture=True, tool_name="minimap2", wsl=self.via_wsl,
+        )
         out_path = Path(output)
-        out_path.write_text(result.stdout or "")
+        out_path.write_text(result.stdout or "", newline="\n")
         return out_path
 
     def self_align(

@@ -190,8 +190,8 @@ def partition_fastq(
 
     def _open_out(path: Path):
         if gzip_output:
-            return gzip.open(path, "wt", compresslevel=compresslevel)
-        return open(path, "w")
+            return gzip.open(path, "wt", compresslevel=compresslevel, newline="\n")
+        return open(path, "w", newline="\n")
 
     pass_fq = Path(pass_fq)
     flt_fq = Path(flt_fq)
@@ -230,8 +230,8 @@ def extract_fastq(
 
     def _open_out(path: Path):
         if gzip_output:
-            return gzip.open(path, "wt", compresslevel=compresslevel)
-        return open(path, "w")
+            return gzip.open(path, "wt", compresslevel=compresslevel, newline="\n")
+        return open(path, "w", newline="\n")
 
     output_fq = Path(output_fq)
     n = 0
@@ -315,7 +315,7 @@ def subsample_fastq(
             if j < n_keep:
                 kept[j] = record
 
-    with open(output_path, "w") as fh:
+    with open(output_path, "w", newline="\n") as fh:
         for header, seq, plus, qual in kept:
             fh.write(f"{header}\n{seq}\n{plus}\n{qual}\n")
 

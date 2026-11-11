@@ -114,7 +114,7 @@ class _BlastBase(ToolWrapper):
 
         if output is not None:
             out_path = Path(output)
-            out_path.write_text(stdout)
+            out_path.write_text(stdout, newline="\n")
             self.logger.info("Wrote %s", out_path)
             return out_path
 

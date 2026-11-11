@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import gzip
 import logging
-import shutil
 import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -45,6 +44,7 @@ from PyQt6.QtWidgets import (
 )
 
 from emtrace.gui.models.pandas_model import PandasTableModel
+from emtrace.utils import wsl
 
 logger = logging.getLogger(__name__)
 
@@ -160,15 +160,16 @@ class _DepthLoader(QThread):
         if not _HAS_MPL:
             self.error.emit(self._chrom, "numpy/matplotlib not available")
             return
-        samtools = shutil.which("samtools")
+        samtools = wsl.locate_tool("samtools")
         if not samtools:
-            self.error.emit(self._chrom, "samtools not found on PATH")
+            self.error.emit(self._chrom, "samtools not found")
             return
         try:
             out = subprocess.check_output(
-                [samtools, "depth", "-a", "-r", self._chrom, str(self._bam)],
+                wsl.tool_argv(*samtools, ["depth", "-a", "-r", self._chrom, str(self._bam)]),
                 stderr=subprocess.DEVNULL,
                 timeout=300,
+                creationflags=wsl.NO_WINDOW,
             )
             positions: List[int] = []
             depths: List[int] = []

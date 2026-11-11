@@ -71,9 +71,9 @@ Self-contained macOS bundles (Apple silicon and Intel) are attached to
 onward. They are not signed, so macOS warns on first launch; see
 [Opening the app](docs/UserGuide.v1.0.md#opening-the-app).
 
-Windows is not supported in this version; Windows support is planned for a future
-release. The installation from source may work under WSL2 (Windows Subsystem for
-Linux), but this is untested.
+Windows support is experimental and not yet tested: EMtrace runs natively and
+uses WSL (Windows Subsystem for Linux) for the tools that have no Windows builds.
+See [EMtrace on Windows](docs/windows_install.md).
 
 Databases, optional tools (BLAST+, Medaka) and the GUI extra are described in
 the [User Guide](docs/UserGuide.v1.0.md#installing-emtrace).

@@ -70,7 +70,7 @@ def fastq_to_fasta(
     Replaces ``seqkit fq2fa -w0``.
     """
     output_fa = Path(output_fa)
-    with open(output_fa, "w") as out:
+    with open(output_fa, "w", newline="\n") as out:
         for header, seq, _, _ in iter_fastq(input_fq):
             # Convert @header to >header
             fa_header = ">" + header.lstrip("@")
@@ -92,7 +92,7 @@ def reads_info_tsv(
     Output has columns: seqid, length (with header).
     """
     output_tsv = Path(output_tsv)
-    with open(output_tsv, "w") as out:
+    with open(output_tsv, "w", newline="\n") as out:
         out.write("seqid\tlength\n")
         for header, seq, _, _ in iter_fastq(input_fq):
             rid = read_id_from_header(header)
@@ -121,7 +121,7 @@ def extract_fasta_by_ids(
     id_set: Set[str] = set(keep_ids)
     output_fa = Path(output_fa)
     n = 0
-    with open(output_fa, "w") as out:
+    with open(output_fa, "w", newline="\n") as out:
         for header, seq in iter_fasta(input_fa):
             if fasta_id_from_header(header) in id_set:
                 out.write(f"{header}\n{seq}\n")
@@ -146,7 +146,7 @@ def exclude_fasta_by_ids(
     id_set: Set[str] = set(exclude_ids)
     output_fa = Path(output_fa)
     n = 0
-    with open(output_fa, "w") as out:
+    with open(output_fa, "w", newline="\n") as out:
         for header, seq in iter_fasta(input_fa):
             if fasta_id_from_header(header) not in id_set:
                 out.write(f"{header}\n{seq}\n")

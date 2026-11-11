@@ -124,7 +124,7 @@ def filter_seqs(
     keep_ids: Set[str] = set(series_results.dropna().astype(str).unique())
 
     n = 0
-    with open(output_fq, "w") as out:
+    with open(output_fq, "w", newline="\n") as out:
         for header, seq, plus, qual in iter_fastq(input_fq):
             rid = read_id_from_header(header)
             if rid in keep_ids:
@@ -157,14 +157,14 @@ def filter_unseqs(
         # subsearch's FASTQ→FASTA step would then misread as text (failing on the
         # gzip magic bytes).
         n = 0
-        with open(output_fq, "w") as out:
+        with open(output_fq, "w", newline="\n") as out:
             for header, seq, plus, qual in iter_fastq(input_fq):
                 out.write(f"{header}\n{seq}\n{plus}\n{qual}\n")
                 n += 1
         return n
 
     n = 0
-    with open(output_fq, "w") as out:
+    with open(output_fq, "w", newline="\n") as out:
         for header, seq, plus, qual in iter_fastq(input_fq):
             rid = read_id_from_header(header)
             if rid not in annotated:

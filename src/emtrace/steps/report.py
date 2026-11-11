@@ -998,7 +998,7 @@ class ReportStep(PipelineStep):
             )
             ensure_dir(sp_dir)
             sp_fq = sp_dir / f"{sp_s}.fq"
-            with open(sp_fq, "a" if sp_fq in started else "w") as fh:
+            with open(sp_fq, "a" if sp_fq in started else "w", newline="\n") as fh:
                 fh.write(
                     f"@{header.lstrip('@')}\n"
                     f"{seq}\n+\n{qual}\n"
