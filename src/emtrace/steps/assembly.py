@@ -578,6 +578,17 @@ class AssemblyStep(PipelineStep):
                     _write(fetched.read_text())
 
         self.logger.info("Combined reference: %s (%d refseqs, %d refaccs)", combined, len(refseqs), len(refaccs))
+        # An empty reference would map no reads and end in an all-N consensus
+        # that looks like a finished run; stop the step instead.
+        if not any(seq for _, seq in iter_fasta(combined)):
+            sources = ", ".join(refseqs + refaccs)
+            raise StepValidationError(
+                self.step_name,
+                f"Combined reference {combined} is empty: no sequence could be obtained "
+                f"for {sources}.\nUse 'Pick from viral hits' to select an accession present "
+                "in the local assembly database, or switch to online mode with "
+                "runtime.entrez_email set.",
+            )
         return combined
 
     def _fetch_accessions(

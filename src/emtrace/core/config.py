@@ -339,7 +339,7 @@ class RefAutoConfig(BaseModel):
     quality_metric: str = "qcov_identity"  # qcov_identity | pident_qcov | bitscore | bits_per_base | reads_won
     secondary_margin: float = 1.0        # how much better a secondary pick must align to replace a primary pick
     use_assembly_db: bool = True         # primary source: search assembly.database
-    use_annotation: bool = True          # secondary source: annotation hits (annot2/annot1)
+    use_annotation: bool = True          # secondary source: annotation hits (annot2/annot1), nucleotide searches only
     minimap: RefAutoMinimapConfig = Field(default_factory=RefAutoMinimapConfig)
 
     @field_validator("quality_metric")

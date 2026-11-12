@@ -164,7 +164,7 @@ assembly:
     quality_metric:       qcov_identity  # qcov_identity | pident_qcov | bitscore | bits_per_base | reads_won
     secondary_margin:     1.0    # how much better a secondary (annotation) pick must align to replace a primary one
     use_assembly_db:      true   # primary source: search assembly.database (RefSeq viral)
-    use_annotation:       true   # secondary source: annotation hits (annot2/annot1)
+    use_annotation:       true   # secondary source: annotation hits (annot2/annot1), nucleotide searches only
     minimap:
       k:                  0      # 0 = index default; 11 (with w 5) for divergent samples, slower
       w:                  0

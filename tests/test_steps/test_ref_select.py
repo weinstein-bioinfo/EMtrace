@@ -16,17 +16,18 @@ from pydantic import ValidationError
 
 from emtrace.analysis.ref_select import candidates_are_current, select_references
 from emtrace.core.config import EMtraceConfig, RefAutoConfig
+from emtrace.core.exceptions import StepValidationError
 from emtrace.steps.assembly import AssemblyStep
 
 
 def _hits(acc, reads, species="Lassa virus", pident=95.0, alen=1000, qseqlen=1000,
-          bitscore=None, db="minimap.assembly", taxid="11620"):
+          bitscore=None, db="minimap.assembly", taxid="11620", search="Minimap2"):
     """One hit of each read in *reads* to *acc*."""
     return pd.DataFrame([{
         "qseqid": r, "sseqid": acc, "species": species, "staxid": taxid, "db": db,
         "pident": pident, "alen": alen, "qseqlen": qseqlen, "qlen": alen,
         "qcov": alen / qseqlen, "bitscore": bitscore if bitscore is not None else alen * pident / 100,
-        "division": "Viruses",
+        "division": "Viruses", "search": search,
     } for r in reads])
 
 
@@ -157,3 +158,41 @@ def test_explicit_refaccs_bypass_ref_auto():
     step._resolve_assembly_reads = lambda sample: (None, None)   # stop right after the check
     sample = SimpleNamespace()
     assert step.run(sample) is sample
+
+
+# --- protein-search hits are not nucleotide references ---------------------
+
+def test_protein_search_hits_are_not_candidates():
+    primary = _hits("NC_1", R, pident=75.0, alen=330)
+    secondary = _hits("UniRef100_X", R, pident=95.0, alen=1000,
+                      db="diamond.uniref.vi", search="Diamond blastx")
+    _, table = select_references(primary, secondary, _cfg())
+    assert _selected(table) == {"NC_1"}
+    prot = table[table["reason"].str.contains("protein search", na=False)]
+    assert len(prot) == 1
+    row = prot.iloc[0]
+    assert row["db"] == "diamond.uniref.vi" and row["source"] == "secondary"
+    assert row["reads"] == len(R) and not row["selected"]
+
+
+def test_chained_round_keeps_nucleotide_rows():
+    secondary = pd.concat([
+        _hits("NC_2", R, pident=90.0, db="minimap.refseq.abv.1g"),
+        _hits("UniRef100_Y", R, pident=99.0, db="diamond.uniref.vi", search="Diamond blastx"),
+    ])
+    picks, table = select_references(None, secondary, _cfg())
+    assert [p.accession for p in picks] == ["NC_2"]
+    assert "UniRef100_Y" not in set(table["accession"])
+
+
+def test_hits_without_search_column_still_used():
+    secondary = _hits("NC_3", R).drop(columns="search")
+    picks, _ = select_references(None, secondary, _cfg())
+    assert [p.accession for p in picks] == ["NC_3"]
+
+
+def test_empty_combined_reference_raises(tmp_path):
+    step = AssemblyStep(EMtraceConfig())
+    step._fetch_accessions = lambda refaccs, asm_dir, sample: None
+    with pytest.raises(StepValidationError, match="UniRef100_X"):
+        step._build_combined_ref([], ["UniRef100_X"], tmp_path, SimpleNamespace())

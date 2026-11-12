@@ -62,7 +62,7 @@ From source (Python ≥ 3.10), with the external tools from Bioconda:
 conda create -n emtrace -c conda-forge -c bioconda \
     minimap2 chopper porechop_abi diamond orfipy samtools bcftools
 conda activate emtrace
-pip install "git+https://github.com/weinstein-bioinfo/EMtrace.git@v1.0.3"
+pip install "git+https://github.com/weinstein-bioinfo/EMtrace.git@v1.0.4"
 emtrace --help
 ```
 

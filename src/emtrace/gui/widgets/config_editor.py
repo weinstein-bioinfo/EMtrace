@@ -1575,7 +1575,8 @@ class ConfigEditorWidget(QScrollArea):
         )
         ref_auto_w.setToolTip(
             "Pick the reference genomes automatically from the assembly reference DB\n"
-            "and the annotation hits. Used only when no reference FASTA file or\n"
+            "and the nucleotide annotation hits (DIAMOND/protein hits are ignored).\n"
+            "Used only when no reference FASTA file or\n"
             "accessions are given; explicit references always win."
         )
         self._field_widgets["assembly.ref_auto.enabled"] = ref_auto_w

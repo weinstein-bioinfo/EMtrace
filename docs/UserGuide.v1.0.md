@@ -137,7 +137,7 @@ xattr -dr com.apple.quarantine /Applications/EMtrace.app
 Each release lists SHA-256 checksums of the bundles. To check a download:
 
 ```bash
-shasum -a 256 EMtrace-macos-arm64-1.0.3.dmg
+shasum -a 256 EMtrace-macos-arm64-1.0.4.dmg
 ```
 
 <a id="building-from-source"></a>
@@ -424,6 +424,11 @@ when neither `refseqs` nor `refaccs` is set. It uses two sources of hits:
   list also reads;
 - **secondary**: the annotation hits (`annot2.tsv`, else `annot1.tsv`).
 
+Only hits from nucleotide searches (Minimap2, Blastn) are candidates. Protein
+searches (DIAMOND, Blastp) hit protein accessions, which cannot serve as
+nucleotide references, so their hits are ignored, including those in a chained
+round such as `vi.chain2`.
+
 In each source, reference accessions are chosen by greedy read cover: the
 accession that aligns best to the reads not yet covered is taken, as long as it
 covers at least `min_reads` of them. The segments of one genome recruit
@@ -440,6 +445,10 @@ used.
 
 Every choice, and every rejected candidate with the reason, is written to
 `assembly/ref_selection.tsv`.
+
+If no sequence can be obtained for the chosen references (for example, an
+accession missing from the local databases with no Entrez access), the
+assembly step stops with an error instead of producing an all-`N` consensus.
 
 Variants are then reported at two independent tiers, because the variant table
 and the consensus sequence have different requirements. The **variant table**

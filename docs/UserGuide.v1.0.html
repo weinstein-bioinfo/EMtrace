@@ -288,7 +288,7 @@ terminal:</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">xattr</span> <span class="at">-dr</span> com.apple.quarantine /Applications/EMtrace.app</span></code></pre></div>
 <p>Each release lists SHA-256 checksums of the bundles. To check a
 download:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">shasum</span> <span class="at">-a</span> 256 EMtrace-macos-arm64-1.0.3.dmg</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">shasum</span> <span class="at">-a</span> 256 EMtrace-macos-arm64-1.0.4.dmg</span></code></pre></div>
 <p><a id="building-from-source"></a></p>
 <h3 id="building-from-source">Building from source</h3>
 <p>EMtrace is a standard Python package (Python ≥ 3.10). Clone the
@@ -715,6 +715,10 @@ default). The hits are saved to
 <li><strong>secondary</strong>: the annotation hits
 (<code>annot2.tsv</code>, else <code>annot1.tsv</code>).</li>
 </ul>
+<p>Only hits from nucleotide searches (Minimap2, Blastn) are candidates.
+Protein searches (DIAMOND, Blastp) hit protein accessions, which cannot
+serve as nucleotide references, so their hits are ignored, including
+those in a chained round such as <code>vi.chain2</code>.</p>
 <p>In each source, reference accessions are chosen by greedy read cover:
 the accession that aligns best to the reads not yet covered is taken, as
 long as it covers at least <code>min_reads</code> of them. The segments
@@ -731,6 +735,10 @@ added from the secondary source. With
 <code>--no-ref_auto_annotation</code>, only one source is used.</p>
 <p>Every choice, and every rejected candidate with the reason, is
 written to <code>assembly/ref_selection.tsv</code>.</p>
+<p>If no sequence can be obtained for the chosen references (for
+example, an accession missing from the local databases with no Entrez
+access), the assembly step stops with an error instead of producing an
+all-<code>N</code> consensus.</p>
 <p>Variants are then reported at two independent tiers, because the
 variant table and the consensus sequence have different requirements.
 The <strong>variant table</strong> (<code>vcf.gz</code>) lists every

@@ -8,6 +8,13 @@ Two hit sources are combined:
              "Pick from viral hits" picker reads.
   secondary  the annotation hits (``annot2.tsv``, else ``annot1.tsv``), viral rows.
 
+Only rows from nucleotide searches (``NUCLEOTIDE_SEARCHES``: minimap2, blastn)
+are candidates: a protein search (Diamond, blastp) hits protein accessions,
+which cannot be fetched as nucleotide references.  A chained round
+(e.g. ``minimap.refseq.abv.1g,diamond.uniref.vi``) mixes both in one table;
+its protein rows are dropped and recorded in the selection table
+(:func:`split_nucleotide_hits`).
+
 Picks are made in each source independently (:func:`pick_references`):
 
   1. hits are grouped by species (``species``, else ``staxid``, else accession),
@@ -54,6 +61,10 @@ logger = logging.getLogger(__name__)
 
 QUALITY_METRICS = ("qcov_identity", "pident_qcov", "bitscore", "bits_per_base", "reads_won")
 _RELATIVE_METRICS = ("bitscore", "bits_per_base")
+
+# Search programs whose subjects are nucleotide sequences (annotation ``search``
+# column, lower-cased).  An allowlist: an unknown search type is not a candidate.
+NUCLEOTIDE_SEARCHES = ("minimap2", "blastn")
 
 SELECTION_COLUMNS = [
     "species", "staxid", "accession", "source", "db", "reads", "new_reads",
@@ -161,6 +172,34 @@ def row_quality(df: pd.DataFrame, metric: str) -> pd.Series:
     else:
         raise ValueError(f"unknown quality_metric: {metric}")
     return q.fillna(0.0)
+
+
+def split_nucleotide_hits(df: Optional[pd.DataFrame],
+                          source: str) -> Tuple[Optional[pd.DataFrame], List[dict]]:
+    """Keep the rows of nucleotide searches; report the others.
+
+    Rows with an empty ``search`` (or a table without the column) are kept.
+    Returns ``(kept, rejected_rows)``: one rejected row (SELECTION_COLUMNS) per
+    dropped ``(db, search)`` pair, with its number of distinct reads.
+    """
+    if df is None or df.empty or "search" not in df.columns:
+        return df, []
+    search = df["search"].fillna("").astype(str).str.strip()
+    keep = (search == "") | search.str.lower().isin(NUCLEOTIDE_SEARCHES)
+    if keep.all():
+        return df, []
+    dropped = df[~keep].assign(search=search[~keep])
+    db = dropped["db"] if "db" in dropped.columns else pd.Series("", index=dropped.index)
+    dropped = dropped.assign(db=db.fillna("").astype(str).str.strip())
+    rejected: List[dict] = []
+    for (db_name, prog), grp in dropped.groupby(["db", "search"]):
+        n = grp["qseqid"].nunique()
+        logger.info("ref_auto: ignored protein hits of %d read(s) from %s (%s)",
+                    n, db_name or "?", prog)
+        rejected.append(_row("", "", "", source, db_name, n,
+                             reason=f"protein search ({prog}): accessions are not "
+                                    "nucleotide references"))
+    return df[keep], rejected
 
 
 def prepare_hits(df: Optional[pd.DataFrame], metric: str) -> pd.DataFrame:
@@ -366,6 +405,8 @@ def select_references(primary: Optional[pd.DataFrame], secondary: Optional[pd.Da
     selection table (SELECTION_COLUMNS) to write as ``ref_selection.tsv``.
     """
     metric = cfg.quality_metric
+    primary, prot_p = split_nucleotide_hits(primary, "primary")
+    secondary, prot_s = split_nucleotide_hits(secondary, "secondary")
     hp = prepare_hits(primary, metric)
     hs = prepare_hits(secondary, metric)
     picks_p, rej_p = pick_references(hp, cfg, "primary")
@@ -376,7 +417,7 @@ def select_references(primary: Optional[pd.DataFrame], secondary: Optional[pd.Da
         final = picks_s
         rows = [_row_pick(s, selected=True,
                           reason="secondary pick; no primary picks") for s in picks_s]
-    table = pd.DataFrame(rows + rej_p + rej_s, columns=SELECTION_COLUMNS)
+    table = pd.DataFrame(rows + rej_p + rej_s + prot_p + prot_s, columns=SELECTION_COLUMNS)
     logger.info("Reference selection: %s", ", ".join(p.accession for p in final) or "none")
     return final, table
 
