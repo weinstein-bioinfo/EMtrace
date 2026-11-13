@@ -8,6 +8,10 @@ graphical, and real-time interfaces.
 
 Full documentation is available in [docs/UserGuide.v1.0.md](docs/UserGuide.v1.0.md).
 
+New to EMtrace? The [tutorial](demo/DEMO.md) walks through six demos on small real datasets
+included in the repository: virus detection, protein search, consensus assembly, real-time
+monitoring, 16S profiling and the desktop app.
+
 ## Features
 
 - **Quality preprocessing** — adapter trimming with *Porechop* / *Porechop_ABI*
@@ -56,15 +60,21 @@ GUI, use the [latest release](https://github.com/weinstein-bioinfo/EMtrace/relea
 version benchmarked in the [preprint](https://doi.org/10.64898/2026.11.09.765303). Use it, with the configurations in
 EMtrace-benchmark, only to reproduce those results.
 
-From source (Python ≥ 3.10), with the external tools from Bioconda:
+From source (Python ≥ 3.10), with the external tools from Bioconda at the
+[tested versions](docs/UserGuide.v1.0.md#tested-versions) pinned in `environment.yml`:
 
 ```bash
-conda create -n emtrace -c conda-forge -c bioconda \
-    minimap2 chopper porechop_abi diamond orfipy samtools bcftools
+curl -LO https://raw.githubusercontent.com/weinstein-bioinfo/EMtrace/v1.0.5/environment.yml
+conda env create -f environment.yml          # external tools, tested versions
 conda activate emtrace
-pip install "git+https://github.com/weinstein-bioinfo/EMtrace.git@v1.0.4"
+pip install "emtrace[gui,plots,excel] @ git+https://github.com/weinstein-bioinfo/EMtrace.git@v1.0.5"
 emtrace --help
 ```
+
+Installation takes about 1.5 min on a laptop (Conda environment about 30 s, `pip install`
+about 1 min). Database downloads take longer and depend on their size: about 15 min for the
+16 GB download of the default `minimap.refseq.abv.1g` index (see the
+[tutorial](demo/DEMO.md#before-you-start)).
 
 Self-contained macOS bundles (Apple silicon and Intel) are attached to
 [releases](https://github.com/weinstein-bioinfo/EMtrace/releases) from v1.0.3
@@ -74,6 +84,11 @@ onward. They are not signed, so macOS warns on first launch; see
 Windows is not supported in this version; Windows support is planned for a future
 release. The installation from source may work under WSL2 (Windows Subsystem for
 Linux), but this is untested.
+
+No special hardware is needed: EMtrace was developed and benchmarked on a laptop
+(Apple M2 Pro, 16 GB RAM); very large libraries may need about 20 GB of RAM. Disk space depends on the reference databases, from
+under 1 GB (16S) to about 38 GB; see the
+[User Guide](docs/UserGuide.v1.0.md#system-requirements).
 
 Databases, optional tools (BLAST+, Medaka) and the GUI extra are described in
 the [User Guide](docs/UserGuide.v1.0.md#installing-emtrace).

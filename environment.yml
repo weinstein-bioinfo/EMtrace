@@ -1,0 +1,24 @@
+# External command-line tools EMtrace calls, pinned to the versions EMtrace 1.0.5
+# was tested with (demo runs, macOS 26.6 on Apple silicon, native osx-arm64
+# builds, 13 Nov 2026).
+#
+#   conda env create -f environment.yml
+#   conda activate emtrace
+#
+# This installs the tools only. Install EMtrace itself into the activated
+# environment from source (User Guide, "Building from source"), or run the macOS
+# app from this terminal so it finds the tools on the PATH.
+# Medaka (optional) is best kept in its own environment; see the User Guide.
+name: emtrace
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.12
+  - minimap2=2.31
+  - chopper=0.15.0
+  - porechop_abi=0.5.1
+  - diamond=2.2.8
+  - orfipy=0.0.4
+  - samtools=1.25
+  - bcftools=1.25

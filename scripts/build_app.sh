@@ -6,7 +6,7 @@
 #   bash scripts/build_app.sh x86_64     # build x86_64 via Rosetta 2
 #
 # Output:
-#   dist/EMtrace-{arch}.app
+#   dist/{arch}/EMtrace.app   (same app name for every arch)
 #   dist/EMtrace-macos-{arch}-{version}.dmg
 #
 # Prerequisites:
@@ -85,6 +85,7 @@ fi
 # User Guide HTML (Help > User Guide); without pandoc the committed copy ships
 if command -v pandoc >/dev/null 2>&1; then
     bash scripts/build_userguide.sh
+    bash scripts/build_demo.sh          # demo/DEMO.html (repository, not the app)
 else
     echo "pandoc not found — shipping the committed docs/UserGuide.v1.0.html"
 fi
@@ -93,14 +94,15 @@ echo ""
 # ------------------------------------------------------------------
 # Build
 # ------------------------------------------------------------------
-echo "Building EMtrace-${ARCH}.app ..."
+echo "Building EMtrace.app ($ARCH) ..."
 echo ""
-TARGET_ARCH="$ARCH" $ARCH_CMD "$PYINSTALLER" EMtrace.spec --clean --noconfirm
+TARGET_ARCH="$ARCH" $ARCH_CMD "$PYINSTALLER" EMtrace.spec --clean --noconfirm \
+    --distpath "dist/${ARCH}" --workpath "build/${ARCH}"
 
 echo ""
 echo "=== Build complete ==="
 
-APP="dist/EMtrace-${ARCH}.app"
+APP="dist/${ARCH}/EMtrace.app"
 if [ ! -d "$APP" ]; then
     echo "ERROR: $APP was not created."
     exit 1

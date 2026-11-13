@@ -175,6 +175,23 @@ def _load_config(config_file, profile):
         "comma-separated. Takes precedence over --hostgen if both are given."
     ),
 )
+# --- Preprocessing ---
+@click.option(
+    "--minreadlength", type=int, default=None,
+    help=(
+        "Minimum read length in bp after quality trimming "
+        "(preprocess.chopper.minlength). Lower it for short-read libraries: "
+        "the default suits raw MinKNOW output, where short reads are mostly "
+        "adapter and fragments."
+    ),
+)
+@click.option(
+    "--minreadquality", type=int, default=None,
+    help=(
+        "Minimum mean Phred quality of a read "
+        "(preprocess.chopper.quality)."
+    ),
+)
 # --- Annotation ---
 @click.option(
     "--ann1", default=None,
@@ -336,6 +353,8 @@ def run(
     ref_auto_annotation: Optional[bool],
     hostgen: Optional[str],
     bgfilter: Optional[str],
+    minreadlength: Optional[int],
+    minreadquality: Optional[int],
     ann1: Optional[str],
     ann2: Optional[str],
     anns: Optional[str],
@@ -405,6 +424,12 @@ def run(
             "--no-ref_auto_assembly_db and --no-ref_auto_annotation cannot be combined: "
             "automatic reference selection needs at least one hit source."
         )
+
+    # Preprocessing
+    if minreadlength is not None:
+        cfg.preprocess.chopper.minlength = minreadlength
+    if minreadquality is not None:
+        cfg.preprocess.chopper.quality = minreadquality
 
     # Scoring thresholds
     if min_blastn_bits is not None:
@@ -837,6 +862,15 @@ def _do_remove(cfg: EMtraceConfig, key: str) -> None:
     "--hostgen", default=None,
     help="Host genome key(s), comma-separated.",
 )
+# --- Preprocessing ---
+@click.option(
+    "--minreadlength", type=int, default=None,
+    help="Minimum read length in bp (preprocess.chopper.minlength).",
+)
+@click.option(
+    "--minreadquality", type=int, default=None,
+    help="Minimum mean Phred quality of a read (preprocess.chopper.quality).",
+)
 # --- Batch ---
 @click.option(
     "--batch-size", type=int, default=1,
@@ -891,6 +925,8 @@ def watch(
     ann2: Optional[str],
     anns: Optional[str],
     hostgen: Optional[str],
+    minreadlength: Optional[int],
+    minreadquality: Optional[int],
     batch_size: int,
     debounce: float,
     scan_existing: bool,
@@ -936,6 +972,10 @@ def watch(
 
     if numth is not None:
         cfg.runtime.num_threads = numth
+    if minreadlength is not None:
+        cfg.preprocess.chopper.minlength = minreadlength
+    if minreadquality is not None:
+        cfg.preprocess.chopper.quality = minreadquality
 
     # Output directory
     out_root = Path(res_dir) if res_dir else Path.cwd()

@@ -8,11 +8,13 @@
 
 - [About EMtrace](#about-emtrace)
 - [Installing EMtrace](#installing-emtrace)
+  - [System requirements](#system-requirements)
   - [Setting up directories](#setting-up-directories)
   - [Using a prebuilt bundle (macOS)](#using-a-prebuilt-bundle-macos)
     - [Opening the app](#opening-the-app)
   - [Building from source](#building-from-source)
   - [Installing dependencies](#installing-dependencies)
+    - [Tested versions](#tested-versions)
   - [Installing databases](#installing-databases)
   - [Installing host and background filters](#installing-host-and-background-filters)
   - [Creating custom databases and filters](#creating-custom-databases-and-filters)
@@ -73,6 +75,20 @@ configuration files:
 
 <a id="installing-emtrace"></a>
 ## Installing EMtrace
+
+<a id="system-requirements"></a>
+### System requirements
+
+EMtrace needs no special hardware. It was developed and benchmarked on a laptop
+(Apple M2 Pro, 12 cores, 16 GB RAM), on which most EMtrace analyses of the
+EMtrace paper ran, with a peak memory of 3–10 GB. The two largest datasets,
+untargeted libraries in a human background, ran on a Linux HPC server and
+peaked at 18–19 GB; for such libraries, plan for about 20 GB of RAM. Disk space depends on the reference databases installed:
+from 0.24 GB for a 16S database to about 38 GB for
+`minimap.genbank.vi+refseq.abv.1g` (sizes in
+[Installing databases](#installing-databases)). The
+[tutorial](../demo/DEMO.md) needs about 35 GB in all, almost all of it for its
+databases. Medaka polishing (optional) can use a GPU but also runs on the CPU.
 
 <a id="setting-up-directories"></a>
 ### Setting up directories
@@ -137,7 +153,7 @@ xattr -dr com.apple.quarantine /Applications/EMtrace.app
 Each release lists SHA-256 checksums of the bundles. To check a download:
 
 ```bash
-shasum -a 256 EMtrace-macos-arm64-1.0.4.dmg
+shasum -a 256 EMtrace-macos-arm64-1.0.5.dmg
 ```
 
 <a id="building-from-source"></a>
@@ -151,14 +167,17 @@ git clone https://github.com/weinstein-bioinfo/EMtrace.git
 cd EMtrace
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e .                   # editable install
+pip install -e ".[gui,plots,excel]"   # editable install, with the optional extras
 ```
 
-The graphical interface depends on PyQt6, which is an optional extra:
+The extras are optional: `gui` installs PyQt6 for the desktop application,
+`plots` the figure libraries (plotly, kaleido, pysam and others; needed for the
+coverage, Sankey and sunburst plots), and `excel` writes `.xlsx` copies of the
+tables. `pip install -e .` installs the command line only.
 
-```bash
-pip install -e ".[gui]"
-```
+To use the Conda environment of the external tools (below) instead of a
+virtual environment, activate it and run the same `pip install` in the cloned
+folder.
 
 Verify the installation:
 
@@ -190,15 +209,26 @@ Pydantic, and others) are installed automatically by `pip`.
 #### Installing dependencies with Conda
 
 The external tools are available from Bioconda. We recommend a dedicated
-environment:
+environment, created from `environment.yml` in the repository's top folder,
+which pins the [tested versions](#tested-versions):
 
 ```bash
-conda create -n emtrace -c conda-forge -c bioconda \
-    minimap2 chopper porechop_abi diamond \
-    orfipy samtools bcftools
+conda env create -f environment.yml
 conda activate emtrace
-pip install -e .
 ```
+
+Without a clone of the repository, download the file of your release first:
+
+```bash
+curl -LO https://raw.githubusercontent.com/weinstein-bioinfo/EMtrace/v1.0.5/environment.yml
+```
+
+**Installation time.** On the laptop of the
+[System requirements](#system-requirements), with empty package caches, creating
+the environment took about 30 s and `pip install ".[gui,plots,excel]"` about
+1 min. Database downloads take longer and depend on their size: about 15 min for
+the 16 GB download of `minimap.refseq.abv.1g` (download sizes and times in the
+[tutorial](../demo/DEMO.md#before-you-start)).
 
 Medaka has heavy dependencies and is best kept in its own environment; point
 EMtrace to it with `assembly.medaka.path` in the configuration (for example
@@ -213,6 +243,33 @@ conda create -n medaka -c conda-forge -c bioconda medaka
 Each tool may also be installed from its upstream release and placed on the
 `PATH`. EMtrace checks for required tools at startup and reports any that are
 missing.
+
+<a id="tested-versions"></a>
+#### Tested versions
+
+EMtrace 1.0.5 was tested on 13 November 2026 by running the
+[tutorial](../demo/DEMO.md) demos with the external tools of `environment.yml`:
+Demos 1–5 with the macOS app, and Demo 1 with the source install in the same
+Conda environment. The results matched the tutorial's expected output.
+EMtrace 1.0.4 was tested on Linux, on the CSC Roihu supercomputer.
+
+| Component | macOS (EMtrace 1.0.5) | Linux (EMtrace 1.0.4) |
+|:--|:--|:--|
+| Operating system | macOS 26.6, Apple silicon (native `osx-arm64` builds) | Red Hat Enterprise Linux 9.8, x86_64 |
+| Python | 3.12.16 | 3.12.16 |
+| *Minimap2* | 2.31 | 2.31 |
+| *Chopper* | 0.15.0 | 0.13.0 |
+| *Porechop_ABI* | 0.5.1 | 0.5.1 |
+| *DIAMOND* | 2.2.8 | 2.2.4 |
+| *orfipy* | 0.0.4 | 0.0.4 |
+| *SAMtools*, *BCFtools* | 1.25 | 1.23.1 |
+| Python packages | NumPy 2.5.4, pandas 3.1.1, Biopython 1.88, Pydantic 2.14.3, PyQt6 6.12.0, matplotlib 3.11.2, plotly 7.1.0, kaleido 1.5.1, pysam 0.24.1 | NumPy 1.26.4, pandas 3.0.6, Biopython 1.85, Pydantic 2.14.1, matplotlib 3.11.2, plotly 5.24.1, pysam 0.24.1 |
+
+<br>
+
+`environment.yml` pins the macOS versions and resolves to the same tool
+versions on Intel macOS (`osx-64`) and Linux (`linux-64`). The optional tools
+(*Medaka*, *BLAST+*) are not used by the tutorial.
 
 <a id="installing-databases"></a>
 ### Installing databases

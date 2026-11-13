@@ -20,7 +20,11 @@ cd "$(dirname "$0")/.."
 SRC="docs/UserGuide.v1.0.md"
 OUT="docs/UserGuide.v1.0.html"
 
-pandoc "$SRC" -f gfm -t html5 --standalone --embed-resources \
+# Links to other .md pages point to their HTML copies here (a browser shows .md
+# as plain text); the .md source keeps .md links for GitHub.
+sed -e 's#(\.\./demo/DEMO\.md#(../demo/DEMO.html#g' "$SRC" |
+pandoc -f gfm -t html5 --standalone --embed-resources \
+    --resource-path=docs \
     --metadata pagetitle="EMtrace User Guide" \
     --css scripts/userguide.css \
     -o "$OUT"

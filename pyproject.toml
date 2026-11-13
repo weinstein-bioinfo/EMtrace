@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "emtrace"
-version = "1.0.4"
+version = "1.0.5"
 description = "Offline, real-time nanopore metagenomics: read classification, EM abundance estimation and reference-based consensus assembly"
 readme = "README.md"
 license = "GPL-3.0-or-later"

@@ -107,13 +107,13 @@ def test_readn_em_is_preferred_when_present(step):
     # readn_em.
     df = abund([1, 50, 900], readn_em=[900.0, 50.0, 1.0])
     out = step._apply_tail_trim(df, ReportConfig(tail=0.01, tail_viruses=True))
-    assert list(out["taxid"]) == ["t0"]
+    assert list(out["taxid"]) == ["t0", "t1"]      # by readn it would be t1, t2
 
 
 def test_na_readn_em_falls_back_to_readn(step):
     df = abund([900, 50, 1], readn_em=["NA", "NA", "NA"])
     out = step._apply_tail_trim(df, ReportConfig(tail=0.01, tail_viruses=True))
-    assert list(out["taxid"]) == ["t0"]
+    assert list(out["taxid"]) == ["t0", "t1"]
 
 
 def test_row_values_are_not_rewritten(step):
@@ -121,7 +121,7 @@ def test_row_values_are_not_rewritten(step):
     # in, so the written TSV is the input minus rows.
     df = abund([900, 50, 1], readn_em=["900.0", "50.0", "1.0"])
     out = step._apply_tail_trim(df, ReportConfig(tail=0.01, tail_viruses=True))
-    assert out["readn_em"].tolist() == ["900.0"]
+    assert out["readn_em"].tolist() == ["900.0", "50.0"]
 
 
 # ------------------------------------------------------------------ #

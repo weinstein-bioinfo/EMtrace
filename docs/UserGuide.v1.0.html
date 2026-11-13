@@ -91,6 +91,7 @@ code span.vs { color: #4070a0; }
 code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
 </style>
   <style type="text/css">
+:root { color-scheme: light; }
 body {
 max-width: 52em;
 margin: 2em auto;
@@ -121,15 +122,6 @@ table { border-collapse: collapse; margin: 1em 0; }
 th, td { border: 1px solid #d8dee4; padding: .35em .7em; text-align: left; vertical-align: top; }
 th { background: #f6f8fa; }
 blockquote { margin: 1em 0; padding: 0 1em; color: #59636e; border-left: 4px solid #d8dee4; }
-@media (prefers-color-scheme: dark) {
-body { color: #e6edf3; background: #0d1117; }
-h1, h2 { border-color: #30363d; }
-a { color: #4493f8; }
-code { background: #262c36; }
-pre, th { background: #161b22; }
-pre, th, td, blockquote { border-color: #30363d; }
-blockquote { color: #9198a1; }
-}
 </style>
 </head>
 <body>
@@ -142,6 +134,7 @@ blockquote { color: #9198a1; }
 <li><a href="#about-emtrace">About EMtrace</a></li>
 <li><a href="#installing-emtrace">Installing EMtrace</a>
 <ul>
+<li><a href="#system-requirements">System requirements</a></li>
 <li><a href="#setting-up-directories">Setting up directories</a></li>
 <li><a href="#using-a-prebuilt-bundle-macos">Using a prebuilt bundle
 (macOS)</a>
@@ -149,7 +142,10 @@ blockquote { color: #9198a1; }
 <li><a href="#opening-the-app">Opening the app</a></li>
 </ul></li>
 <li><a href="#building-from-source">Building from source</a></li>
-<li><a href="#installing-dependencies">Installing dependencies</a></li>
+<li><a href="#installing-dependencies">Installing dependencies</a>
+<ul>
+<li><a href="#tested-versions">Tested versions</a></li>
+</ul></li>
 <li><a href="#installing-databases">Installing databases</a></li>
 <li><a href="#installing-host-and-background-filters">Installing host
 and background filters</a></li>
@@ -221,6 +217,18 @@ configuration files:</p>
 <hr />
 <p><a id="installing-emtrace"></a></p>
 <h2 id="installing-emtrace">Installing EMtrace</h2>
+<p><a id="system-requirements"></a></p>
+<h3 id="system-requirements">System requirements</h3>
+<p>EMtrace needs no special hardware. It was developed and benchmarked
+on a laptop (Apple M2 Pro, 12 cores, 16 GB RAM), on which most EMtrace
+analyses of the EMtrace paper ran, with a peak memory of 3–10 GB. The
+two largest datasets, untargeted libraries in a human background, ran on
+a Linux HPC server and peaked at 18–19 GB; for such libraries, plan for
+about 20 GB of RAM. Disk space depends on the reference databases
+installed: from 0.24 GB for a 16S database to about 38 GB for
+<code>minimap.genbank.vi+refseq.abv.1g</code> (sizes in <a href="#installing-databases">Installing databases</a>). The <a href="../demo/DEMO.html">tutorial</a> needs about 35 GB in all, almost
+all of it for its databases. Medaka polishing (optional) can use a GPU
+but also runs on the CPU.</p>
 <p><a id="setting-up-directories"></a></p>
 <h3 id="setting-up-directories">Setting up directories</h3>
 <p>EMtrace separates <em>software</em>, <em>reference data</em>, and
@@ -288,7 +296,7 @@ terminal:</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">xattr</span> <span class="at">-dr</span> com.apple.quarantine /Applications/EMtrace.app</span></code></pre></div>
 <p>Each release lists SHA-256 checksums of the bundles. To check a
 download:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">shasum</span> <span class="at">-a</span> 256 EMtrace-macos-arm64-1.0.4.dmg</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">shasum</span> <span class="at">-a</span> 256 EMtrace-macos-arm64-1.0.5.dmg</span></code></pre></div>
 <p><a id="building-from-source"></a></p>
 <h3 id="building-from-source">Building from source</h3>
 <p>EMtrace is a standard Python package (Python ≥ 3.10). Clone the
@@ -297,12 +305,18 @@ repository and install it into a virtual environment:</p>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> EMtrace</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> <span class="at">-m</span> venv .venv</span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="bu">source</span> .venv/bin/activate</span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="at">-e</span> .                   <span class="co"># editable install</span></span></code></pre></div>
-<p>The graphical interface depends on PyQt6, which is an optional
-extra:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="at">-e</span> <span class="st">&quot;.[gui]&quot;</span></span></code></pre></div>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="at">-e</span> <span class="st">&quot;.[gui,plots,excel]&quot;</span>   <span class="co"># editable install, with the optional extras</span></span></code></pre></div>
+<p>The extras are optional: <code>gui</code> installs PyQt6 for the
+desktop application, <code>plots</code> the figure libraries (plotly,
+kaleido, pysam and others; needed for the coverage, Sankey and sunburst
+plots), and <code>excel</code> writes <code>.xlsx</code> copies of the
+tables. <code>pip install -e .</code> installs the command line
+only.</p>
+<p>To use the Conda environment of the external tools (below) instead of
+a virtual environment, activate it and run the same
+<code>pip install</code> in the cloned folder.</p>
 <p>Verify the installation:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">emtrace</span> <span class="at">--help</span></span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">emtrace</span> <span class="at">--help</span></span></code></pre></div>
 <p><a id="installing-dependencies"></a></p>
 <h3 id="installing-dependencies">Installing dependencies</h3>
 <p>EMtrace calls a small set of established command-line tools, which
@@ -382,12 +396,19 @@ missing)</td>
 <h4 id="installing-dependencies-with-conda">Installing dependencies with
 Conda</h4>
 <p>The external tools are available from Bioconda. We recommend a
-dedicated environment:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">conda</span> create <span class="at">-n</span> emtrace <span class="at">-c</span> conda-forge <span class="at">-c</span> bioconda <span class="dt">\</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    minimap2 chopper porechop_abi diamond <span class="dt">\</span></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    orfipy samtools bcftools</span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="ex">conda</span> activate emtrace</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="at">-e</span> .</span></code></pre></div>
+dedicated environment, created from <code>environment.yml</code> in the
+repository&#39;s top folder, which pins the <a href="#tested-versions">tested versions</a>:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">conda</span> env create <span class="at">-f</span> environment.yml</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="ex">conda</span> activate emtrace</span></code></pre></div>
+<p>Without a clone of the repository, download the file of your release
+first:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-LO</span> https://raw.githubusercontent.com/weinstein-bioinfo/EMtrace/v1.0.5/environment.yml</span></code></pre></div>
+<p><strong>Installation time.</strong> On the laptop of the <a href="#system-requirements">System requirements</a>, with empty package
+caches, creating the environment took about 30 s and
+<code>pip install &quot;.[gui,plots,excel]&quot;</code> about 1 min. Database
+downloads take longer and depend on their size: about 15 min for the 16
+GB download of <code>minimap.refseq.abv.1g</code> (download sizes and
+times in the <a href="../demo/DEMO.html#before-you-start">tutorial</a>).</p>
 <p>Medaka has heavy dependencies and is best kept in its own
 environment; point EMtrace to it with <code>assembly.medaka.path</code>
 in the configuration (for example
@@ -398,6 +419,80 @@ manually</h4>
 <p>Each tool may also be installed from its upstream release and placed
 on the <code>PATH</code>. EMtrace checks for required tools at startup
 and reports any that are missing.</p>
+<p><a id="tested-versions"></a></p>
+<h4 id="tested-versions">Tested versions</h4>
+<p>EMtrace 1.0.5 was tested on 13 November 2026 by running the <a href="../demo/DEMO.html">tutorial</a> demos with the external tools of
+<code>environment.yml</code>: Demos 1–5 with the macOS app, and Demo 1
+with the source install in the same Conda environment. The results
+matched the tutorial&#39;s expected output. EMtrace 1.0.4 was tested on
+Linux, on the CSC Roihu supercomputer.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Component</th>
+<th style="text-align: left;">macOS (EMtrace 1.0.5)</th>
+<th style="text-align: left;">Linux (EMtrace 1.0.4)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Operating system</td>
+<td style="text-align: left;">macOS 26.6, Apple silicon (native
+<code>osx-arm64</code> builds)</td>
+<td style="text-align: left;">Red Hat Enterprise Linux 9.8, x86_64</td>
+</tr>
+<tr>
+<td style="text-align: left;">Python</td>
+<td style="text-align: left;">3.12.16</td>
+<td style="text-align: left;">3.12.16</td>
+</tr>
+<tr>
+<td style="text-align: left;"><em>Minimap2</em></td>
+<td style="text-align: left;">2.31</td>
+<td style="text-align: left;">2.31</td>
+</tr>
+<tr>
+<td style="text-align: left;"><em>Chopper</em></td>
+<td style="text-align: left;">0.15.0</td>
+<td style="text-align: left;">0.13.0</td>
+</tr>
+<tr>
+<td style="text-align: left;"><em>Porechop_ABI</em></td>
+<td style="text-align: left;">0.5.1</td>
+<td style="text-align: left;">0.5.1</td>
+</tr>
+<tr>
+<td style="text-align: left;"><em>DIAMOND</em></td>
+<td style="text-align: left;">2.2.8</td>
+<td style="text-align: left;">2.2.4</td>
+</tr>
+<tr>
+<td style="text-align: left;"><em>orfipy</em></td>
+<td style="text-align: left;">0.0.4</td>
+<td style="text-align: left;">0.0.4</td>
+</tr>
+<tr>
+<td style="text-align: left;"><em>SAMtools</em>, <em>BCFtools</em></td>
+<td style="text-align: left;">1.25</td>
+<td style="text-align: left;">1.23.1</td>
+</tr>
+<tr>
+<td style="text-align: left;">Python packages</td>
+<td style="text-align: left;">NumPy 2.5.4, pandas 3.1.1, Biopython 1.88,
+Pydantic 2.14.3, PyQt6 6.12.0, matplotlib 3.11.2, plotly 7.1.0, kaleido
+1.5.1, pysam 0.24.1</td>
+<td style="text-align: left;">NumPy 1.26.4, pandas 3.0.6, Biopython
+1.85, Pydantic 2.14.1, matplotlib 3.11.2, plotly 5.24.1, pysam
+0.24.1</td>
+</tr>
+</tbody>
+</table>
+<br>
+
+<p><code>environment.yml</code> pins the macOS versions and resolves to
+the same tool versions on Intel macOS (<code>osx-64</code>) and Linux
+(<code>linux-64</code>). The optional tools (<em>Medaka</em>,
+<em>BLAST+</em>) are not used by the tutorial.</p>
 <p><a id="installing-databases"></a></p>
 <h3 id="installing-databases">Installing databases</h3>
 <p>Annotation databases are managed through the <code>databases</code>

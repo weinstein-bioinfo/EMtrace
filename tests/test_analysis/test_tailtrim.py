@@ -3,7 +3,7 @@
 This file is duplicated verbatim beside the other copy of the module it tests:
 
     EMtrace/tests/test_analysis/test_tailtrim.py
-    EMtrace-benchmark/ngs_benchmark/tests/test_tailtrim.py
+    EMtrace-benchmark/tests/test_tailtrim.py
 
 Only the import line differs. `test_tailtrim_equivalence.py` in the benchmark
 repo asserts the two implementations agree; these tests pin what they agree on.
@@ -52,28 +52,52 @@ def test_one_numeric_value_is_enough():
 
 
 # ------------------------------------------------------------------ #
-# Boundary: inclusive share, kept at <=
+# Boundary: drop only taxa that TOGETHER hold at most `tail`
 # ------------------------------------------------------------------ #
 
-def test_inclusive_share_keeps_rows_at_or_below_threshold():
-    # counts 1000,100,10,1 over a total of 1111.
-    # inclusive shares: 0.9001, 0.9901, 0.9991, 1.0000
-    # tail 0.01 -> keep share <= 0.99 -> only the first row qualifies.
+def test_drops_the_smallest_taxa_holding_at_most_the_tail():
+    # counts 1000,100,10,1 over 1111. From the bottom: 1 (0.09 %), 1+10
+    # (0.99 %) fit in a 1 % tail; adding 100 (10.9 %) does not.
     out = tail_trim(frame([1000, 100, 10, 1]), 0.01)
-    assert list(out["taxid"]) == ["t0"]
+    assert list(out["taxid"]) == ["t0", "t1"]
 
 
-def test_a_tail_larger_than_the_top_taxons_share_drops_everything():
-    # Nothing special-cases the top taxon: its own inclusive share is 0.9001,
-    # so a 10 % tail puts even it past the 0.90 threshold. Cumulative-share
-    # trimming is about mass, not rank.
-    assert len(tail_trim(frame([1000, 100, 10, 1]), 0.10)) == 0
+def test_the_straddling_taxon_is_kept():
+    # A 10 % tail drops t1..t3 (111 reads, 9.99 %) and keeps the top taxon,
+    # whatever its own share.
+    assert list(tail_trim(frame([1000, 100, 10, 1]), 0.10)["taxid"]) == ["t0"]
 
 
-def test_tiny_tail_keeps_almost_everything():
-    # tail 0.0005 -> threshold 0.9995 -> the 0.9991 row survives, the 1.0 does not.
+def test_tiny_tail_keeps_everything_larger_than_it():
+    # The smallest taxon alone is 0.09 % > 0.05 %, so nothing is dropped.
     out = tail_trim(frame([1000, 100, 10, 1]), 0.0005)
-    assert list(out["taxid"]) == ["t0", "t1", "t2"]
+    assert list(out["taxid"]) == ["t0", "t1", "t2", "t3"]
+
+
+def test_two_equal_halves_are_both_kept():
+    # The pre-v1.0.5 rule dropped the second 50 % taxon.
+    assert len(tail_trim(frame([500, 500]), 0.01)) == 2
+
+
+def test_a_large_last_taxon_is_never_dropped():
+    assert len(tail_trim(frame([600, 300, 100]), 0.01)) == 3
+
+
+def test_demo5_tail():
+    # Demo 5 (16S gut standard): the 1.2 % genus is kept; the 0.93 % genus and
+    # three single reads (67 reads, 0.97 % together) are dropped.
+    out = tail_trim(frame([6726, 81, 64, 1, 1, 1]), 0.01)
+    assert list(out["taxid"]) == ["t0", "t1"]
+
+
+@pytest.mark.parametrize("tail", [0.001, 0.01, 0.05, 0.2])
+def test_dropped_mass_never_exceeds_the_tail(tail):
+    counts = [1000, 500, 100, 50, 10, 5, 1]
+    out = tail_trim(frame(counts), tail, "readn")
+    dropped = sum(counts) - out["readn"].sum()
+    assert dropped <= tail * sum(counts)
+    # ... and the smallest survivor would not have fitted.
+    assert dropped + out["readn"].min() > tail * sum(counts)
 
 
 def test_uniform_counts_drop_exactly_the_last_rows():
@@ -119,10 +143,9 @@ def test_missing_count_column_is_identity():
     pd.testing.assert_frame_equal(tail_trim(df, 0.01, "nosuchcol"), df)
 
 
-def test_single_row_survives_any_tail():
-    # Its inclusive share is exactly 1.0, so only tail 0 keeps it -- but a
-    # one-taxon table has no tail to speak of. tail 1.0 drops it.
-    assert len(tail_trim(frame([42]), 0.5)) == 0
+def test_single_row_survives_any_tail_below_one():
+    # A one-taxon table has no tail to trim.
+    assert len(tail_trim(frame([42]), 0.5)) == 1
 
 
 # ------------------------------------------------------------------ #
@@ -136,13 +159,13 @@ def test_preserve_order_keeps_input_order_and_values():
         "readn_em": ["10.0", "1000.0", "1.0", "100.0"],  # strings on purpose
     })
     out = tail_trim(df, 0.01, "readn", preserve_order=True)
-    assert list(out["taxid"]) == ["b"]                 # input order preserved
-    assert out["readn_em"].tolist() == ["1000.0"]      # string values untouched
+    assert list(out["taxid"]) == ["b", "d"]            # input order preserved
+    assert out["readn_em"].tolist() == ["1000.0", "100.0"]  # strings untouched
 
 
 def test_preserve_order_false_sorts_and_coerces():
     df = pd.DataFrame({"taxid": ["a", "b", "c"], "readn": ["10", "1000", "1"]})
-    out = tail_trim(df, 0.0005, "readn", preserve_order=False)
+    out = tail_trim(df, 0.002, "readn", preserve_order=False)
     assert list(out["taxid"]) == ["b", "a"]            # descending by count
     assert out["readn"].tolist() == [1000.0, 10.0]     # coerced to numeric
 
@@ -196,9 +219,9 @@ def test_denominator_is_global_not_per_group():
     withvi = tail_trim(frame(bact + [10000], [BA] * 6 + [VI]), 0.05, "readn",
                        group_col="division", group_tails={VI: 0.0})
 
-    # 100,10,5,3,2,1 over 121: shares 0.826, 0.909, 0.9504, ...
-    # threshold 0.95, so t2 is already just past it.
-    assert set(alone["taxid"]) == {"t0", "t1"}
+    # 100,10,5,3,2,1 over 121: from the bottom 1+2+3 = 6 (4.96 %) fit in a
+    # 5 % tail; adding 5 (9.1 %) does not.
+    assert set(alone["taxid"]) == {"t0", "t1", "t2"}
     assert set(withvi["taxid"]) == {"t6"}, "only the exempt viral row survives"
 
 
@@ -224,7 +247,7 @@ def test_group_col_absent_falls_back_to_the_flat_tail():
     df = frame([1000, 100, 10, 1])
     out = tail_trim(df, 0.01, "readn", group_col="division",
                     group_tails={VI: 0.0})
-    assert list(out["taxid"]) == ["t0"]
+    assert list(out["taxid"]) == ["t0", "t1"]
 
 
 # ------------------------------------------------------------------ #
@@ -239,8 +262,8 @@ def test_default_count_col_is_resolved_not_assumed():
         "readn": [1, 500, 1000],
         "readn_em": [1000.0, 500.0, 1.0],
     })
-    assert list(tail_trim(df, 0.01)["taxid"]) == ["a"]
-    assert list(tail_trim(df, 0.01, "readn")["taxid"]) == ["c"]
+    assert list(tail_trim(df, 0.01)["taxid"]) == ["a", "b"]
+    assert list(tail_trim(df, 0.01, "readn")["taxid"]) == ["b", "c"]
 
 
 def test_na_readn_em_falls_back_to_readn():
@@ -249,7 +272,7 @@ def test_na_readn_em_falls_back_to_readn():
         "readn": [1000, 500, 1],
         "readn_em": ["NA", "NA", "NA"],
     })
-    assert list(tail_trim(df, 0.01)["taxid"]) == ["a"]
+    assert list(tail_trim(df, 0.01)["taxid"]) == ["a", "b"]
 
 
 @pytest.mark.parametrize("tail", [0.0, 0.001, 0.01, 0.05, 0.5])

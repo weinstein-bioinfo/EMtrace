@@ -6,27 +6,34 @@ other:
     EMtrace/src/emtrace/analysis/tailtrim.py
     EMtrace-benchmark/ngs_benchmark/tailtrim.py
 
-`EMtrace-benchmark/ngs_benchmark/tests/test_tailtrim_equivalence.py` asserts the two are byte
--identical, so a change to one is a red test until it is copied to the other.
-Keep them that way: the whole point is that "1 % tail trim" means one thing in
-the pipeline, in the scorers and in the published numbers.
+`EMtrace-benchmark/tests/test_tailtrim_equivalence.py` asserts the two are
+byte-identical, so a change to one is a red test until it is copied to the
+other. Keep them that way: the whole point is that "1 % tail trim" means one
+thing in the pipeline and in the scorers.
 
 Semantics
 ---------
-Sort taxa by abundance descending, walk down the list accumulating their share
-of the total, and drop the rows past ``1 - tail``. ``tail`` is a FRACTION, so
-0.01 drops the smallest taxa that together hold the last 1 % of reads.
+``tail`` is a FRACTION: 0.01 drops the smallest taxa that together hold at most
+the last 1 % of reads, and nothing else.
 
-The share is **inclusive** (a row's own count is in its share) and the boundary
-is ``<=``. Both choices are load-bearing: they are what
-the 16S scorer of the EMtrace benchmark (``filter_cell``) has always done, and every
-published 16S and Framework C number is computed with them.
+Sort taxa by abundance descending. A row is kept when the taxa ranked ABOVE it
+hold less than ``1 - tail`` of the total (an exclusive running share). This is
+the same as walking up from the smallest taxon and dropping rows while their
+combined share stays within ``tail``. A taxon that straddles the line is kept,
+so the top taxon, a single-taxon table, or two taxa of 50 % each are never
+trimmed.
+
+(Before EMtrace v1.0.5 the share was inclusive — a row's own count counted —
+and rows were kept at ``<= 1 - tail``. That dropped the straddling taxon
+whatever its size, and always the last row: two taxa of 50 % each lost the
+second. Benchmark scores with ``tail > 0`` computed before the fix used that
+rule.)
 
 The denominator is **every row in the frame**, always. Grouping (``group_col`` /
 ``group_tails``) changes only each row's *threshold*, never the denominator —
-so "protect viruses" is expressed as a tail of 0.0 for the viral group, giving
-a threshold of 1.0 that no share can exceed, while the remaining taxa are still
-measured against the full library rather than against each other.
+so "protect viruses" is expressed as a tail of 0.0 for the viral group, whose
+rows are then never trimmed, while the remaining taxa are still measured
+against the full library rather than against each other.
 
 This is a filter over **species-granularity rows** — one row per taxon, as the
 abundance table has. Applying it to an already-collapsed genus or family table
@@ -88,9 +95,9 @@ def tail_trim(
         Column to rank and accumulate on. ``None`` resolves it with
         :func:`resolve_count_col` (``readn_em``, falling back to ``readn``).
     group_col, group_tails
-        Per-group thresholds: a row in group *g* is kept when its share is at
-        or below ``1 - group_tails[g]``, defaulting to `tail` for groups the
-        mapping does not name. The denominator stays global either way. Pass
+        Per-group thresholds: a row in group *g* is kept when the taxa ranked
+        above it hold less than ``1 - group_tails[g]``, defaulting to `tail`
+        for groups the mapping does not name; a tail of ``<= 0`` keeps the row. The denominator stays global either way. Pass
         ``group_tails={"Viruses": 0.0}`` to exempt viruses from the trim.
     preserve_order
         ``True`` returns the surviving rows in the input's own order, with
@@ -127,8 +134,11 @@ def tail_trim(
     out = df.copy()
     out[count_col] = counts
     out = out.sort_values(count_col, ascending=False)
-    share = out[count_col].cumsum() / total
-    keep = share <= (1.0 - thresholds.reindex(out.index))
+    # Share held by the taxa ranked above each row (exclusive of the row).
+    above = (out[count_col].cumsum() - out[count_col]) / total
+    row_tail = thresholds.reindex(out.index)
+    # Exempt rows (tail <= 0, e.g. protected viruses) are always kept.
+    keep = (above < (1.0 - row_tail)) | (row_tail <= 0)
 
     if preserve_order:
         return df.loc[df.index.isin(out.index[keep])]

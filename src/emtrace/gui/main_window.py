@@ -508,6 +508,7 @@ class MainWindow(QMainWindow):
 
         help_menu = bar.addMenu("&Help")
         help_menu.addAction("&User Guide\tF1", self._on_open_manual)
+        help_menu.addAction("&Tutorial", self._on_open_demo)
         help_menu.addSeparator()
         help_menu.addAction("&About", self._on_about)
 
@@ -1229,31 +1230,49 @@ class MainWindow(QMainWindow):
         dlg.config_updated.connect(lambda cfg: setattr(self, "_config", cfg))
         dlg.exec()
 
-    def _on_open_manual(self) -> None:
-        """Help > User Guide — open docs/UserGuide.v1.0.html in the browser.
+    #: GitHub page of this version's documents, used when no local copy exists.
+    _DOCS_ONLINE = "https://github.com/weinstein-bioinfo/EMtrace/blob/v{version}/{path}"
 
-        The HTML is rendered from the .md by scripts/build_userguide.sh: every
-        OS opens .html in a browser, where the TOC links work, whereas .md
-        usually lands in a plain text editor. Falls back to the .md.
+    def _open_doc(self, folder: str, names: tuple, title: str) -> None:
+        """Open a bundled document in the browser, else its online copy.
+
+        Local copies exist in the macOS app bundle and in a repository
+        checkout (``bundle_root()/<folder>``); the first of `names` found
+        there is opened (the .html, rendered by scripts/build_*.sh, before
+        the .md, which most systems open in a text editor). A pip install
+        ships the Python package only, so it opens the same document on
+        GitHub at this version's tag instead, where the .md is rendered.
         """
         from PyQt6.QtCore import QUrl
         from PyQt6.QtGui import QDesktopServices
         from emtrace.gui.platform import bundle_root
-        docs = bundle_root() / "docs"
-        manual = docs / "UserGuide.v1.0.html"
-        if not manual.exists():
-            manual = docs / "UserGuide.v1.0.md"
-        if not manual.exists():
+        local = next((bundle_root() / folder / n for n in names
+                      if (bundle_root() / folder / n).exists()), None)
+        if local is not None:
+            url = QUrl.fromLocalFile(str(local))
+        else:
+            md = next(n for n in names if n.endswith(".md"))
+            url = QUrl(self._DOCS_ONLINE.format(version=__version__,
+                                                path=f"{folder}/{md}"))
+        if not QDesktopServices.openUrl(url):
             QMessageBox.warning(
-                self, "User guide not found",
-                f"Could not find the user guide in:\n{docs}",
+                self, f"Cannot open the {title}",
+                f"Failed to open the {title}:\n{url.toString()}",
             )
-            return
-        if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(manual))):
-            QMessageBox.warning(
-                self, "Cannot open user guide",
-                f"Failed to open the user guide:\n{manual}",
-            )
+
+    def _on_open_manual(self) -> None:
+        """Help > User Guide — docs/UserGuide.v1.0.html, else online."""
+        self._open_doc("docs", ("UserGuide.v1.0.html", "UserGuide.v1.0.md"),
+                       "user guide")
+
+    def _on_open_demo(self) -> None:
+        """Help > Tutorial — demo/DEMO.html, else online.
+
+        The HTML is rendered from demo/DEMO.md by scripts/build_demo.sh and
+        loads its figures from demo/img/; both ship in the app bundle. The
+        demo reads do not: the page explains how to download them.
+        """
+        self._open_doc("demo", ("DEMO.html", "DEMO.md"), "tutorial")
 
     def _on_about(self) -> None:
         QMessageBox.about(

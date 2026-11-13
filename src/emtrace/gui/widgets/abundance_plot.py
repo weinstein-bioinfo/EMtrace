@@ -299,14 +299,13 @@ class AbundancePlotWidget(QWidget):
         show_pct = self._unit_combo.currentText() == "Percent"
         has_prob = "prob" in abund.columns and abund["prob"].gt(0).any()
 
-        # Aggregate readn + weighted-mean prob per taxon label
+        # Aggregate readn + prob per taxon label. prob is each row's EM share
+        # of the library, so a label's share is the sum over its rows (e.g.
+        # the species of one genus), not their mean.
         if has_prob:
-            tmp = abund.copy()
-            tmp["_pw"] = tmp[value_col] * tmp["prob"]
-            _agg = tmp.groupby(label_col, dropna=False).agg(
-                _val=(value_col, "sum"), _pw=("_pw", "sum")
+            _agg = abund.groupby(label_col, dropna=False).agg(
+                _val=(value_col, "sum"), _prob=("prob", "sum")
             )
-            _agg["_prob"] = _agg["_pw"] / _agg["_val"].replace(0, 1)
             grouped = _agg["_val"].sort_values(ascending=False)
             prob_by_label = _agg["_prob"]
         else:
@@ -325,7 +324,7 @@ class AbundancePlotWidget(QWidget):
             if prob_by_label is not None:
                 rest = grouped.iloc[top_n:]
                 rest_p = prob_by_label.reindex(rest.index, fill_value=0)
-                other_prob = (rest * rest_p).sum() / rest.sum() if rest.sum() > 0 else 0.0
+                other_prob = rest_p.sum()  # total share of the grouped taxa
                 prob_by_label = pd.concat([
                     prob_by_label.reindex(grouped.iloc[:top_n].index, fill_value=0),
                     pd.Series({"Other": other_prob}),

@@ -101,6 +101,21 @@ for _doc in ('UserGuide.v1.0.html', 'UserGuide.v1.0.md', 'UserGuide.v1.0.pdf'):
     if _p.is_file():
         datas.append((str(_p), 'docs'))
 
+# Demo walkthrough (Help > Tutorial): demo/DEMO.html (scripts/build_demo.sh)
+# and only the figures it shows. Shipped as demo/ beside docs/, as in the
+# repository, so its links to ../docs/UserGuide.v1.0.html resolve. The reads
+# are not bundled: the page tells app users how to download them.
+_demo_html = PROJECT_ROOT / 'demo' / 'DEMO.html'
+if _demo_html.is_file():
+    import re as _re
+    datas.append((str(_demo_html), 'demo'))
+    _imgs = set(_re.findall(r'src="(img/[^"]+)"',
+                            _demo_html.read_text(encoding='utf-8')))
+    for _img in sorted(_imgs):
+        _p = PROJECT_ROOT / 'demo' / _img
+        if _p.is_file():
+            datas.append((str(_p), os.path.join('demo', 'img')))
+
 # ------------------------------------------------------------------
 # Pre-build the matplotlib font cache and ship it as bundled data, so the
 # first launch does not pause to scan system fonts.
@@ -173,6 +188,10 @@ hidden_imports += [
     'Bio.SeqIO',
     'Bio.Seq',
     'Bio.Align',
+    # orfipy_core is a compiled extension imported lazily (wrappers/orfipy.py),
+    # and it imports ahocorasick from C, which a static scan cannot see.
+    'orfipy_core',
+    'ahocorasick',
     'matplotlib',
     'matplotlib.backends.backend_agg',
     'matplotlib.backends.backend_pdf',
@@ -265,6 +284,11 @@ exe = EXE(
 # ------------------------------------------------------------------
 # COLLECT (directory-based bundle)
 # ------------------------------------------------------------------
+# macOS: the app is EMtrace.app for every arch (the arch is only in the .dmg
+# name), so it installs to the same /Applications/EMtrace.app path; build into a
+# per-arch --distpath (dist/<arch>/, see scripts/build_app.sh) to keep builds apart.
+COLLECT_NAME = 'EMtrace' if IS_DARWIN else f'EMtrace-{BUILD_ARCH}'
+
 coll = COLLECT(
     exe,
     a.binaries,
@@ -272,7 +296,7 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name=f'EMtrace-{BUILD_ARCH}',
+    name=COLLECT_NAME,
 )
 
 # ------------------------------------------------------------------
@@ -281,7 +305,7 @@ coll = COLLECT(
 import glob as _glob
 import shutil
 
-_collect_dir = os.path.join(DISTPATH, f'EMtrace-{BUILD_ARCH}')  # noqa: F821
+_collect_dir = os.path.join(DISTPATH, COLLECT_NAME)  # noqa: F821
 
 # Remove matplotlib sample_data — never accessed at runtime
 _sample_data = os.path.join(_collect_dir, 'matplotlib', 'mpl-data', 'sample_data')
@@ -298,7 +322,7 @@ for _d in _glob.glob(os.path.join(_collect_dir, '*.dist-info')):
 if IS_DARWIN:
     app = BUNDLE(
         coll,
-        name=f'EMtrace-{BUILD_ARCH}.app',
+        name='EMtrace.app',
         icon=ICON_ICNS,
         bundle_identifier='fi.helsinki.emtrace.app',
         info_plist={
@@ -317,9 +341,13 @@ if IS_DARWIN:
     # Post-BUNDLE: create the versioned .dmg
     # e.g. dist/EMtrace-macos-arm64-1.0.1.dmg
     # --------------------------------------------------------------
-    _app_path = os.path.join(DISTPATH, f'EMtrace-{BUILD_ARCH}.app')  # noqa: F821
-    _dmg_path = os.path.join(                                            # noqa: F821
-        DISTPATH, f'EMtrace-macos-{BUILD_ARCH}-{APP_VERSION}.dmg',
+    _app_path = os.path.join(DISTPATH, 'EMtrace.app')  # noqa: F821
+    # With a per-arch --distpath (dist/<arch>), the .dmg goes one level up (dist/)
+    _dmg_dir = DISTPATH  # noqa: F821
+    if os.path.basename(os.path.normpath(_dmg_dir)) == BUILD_ARCH:
+        _dmg_dir = os.path.dirname(os.path.normpath(_dmg_dir))
+    _dmg_path = os.path.join(
+        _dmg_dir, f'EMtrace-macos-{BUILD_ARCH}-{APP_VERSION}.dmg',
     )
     _subprocess.run(
         ['hdiutil', 'create', '-volname', 'EMtrace',

@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc 3.10.2" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>EMtrace tutorial</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: 1.5em;}
+    div.column{flex: auto;}
+    @media screen {
+    div.columns{gap: min(4vw, 1.5em);}
+    div.column{overflow-x: auto;}
+    }
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <style>
+  :root { color-scheme: light; }
+  /* Style for docs/UserGuide.v1.0.html and demo/DEMO.html (scripts/build_userguide.sh,
+     scripts/build_demo.sh). Light mode only, so both pages look the same whatever
+     the system appearance. */
+  :root { color-scheme: light; }
+  body {
+    max-width: 52em;
+    margin: 2em auto;
+    padding: 0 1em;
+    font: 16px/1.55 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    color: #1f2328;
+    background: #fff;
+  }
+  h1, h2, h3, h4 { line-height: 1.25; margin-top: 1.6em; }
+  h1, h2 { border-bottom: 1px solid #d8dee4; padding-bottom: .3em; }
+  a { color: #0969da; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code {
+    font: 0.9em/1.45 ui-monospace, Menlo, Consolas, monospace;
+    background: #f0f2f4;
+    padding: .1em .3em;
+    border-radius: 4px;
+  }
+  pre {
+    background: #f6f8fa;
+    border: 1px solid #d8dee4;
+    border-radius: 6px;
+    padding: .8em 1em;
+    overflow-x: auto;
+  }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; margin: 1em 0; }
+  th, td { border: 1px solid #d8dee4; padding: .35em .7em; text-align: left; vertical-align: top; }
+  th { background: #f6f8fa; }
+  blockquote { margin: 1em 0; padding: 0 1em; color: #59636e; border-left: 4px solid #d8dee4; }
+  </style>
+</head>
+<body>
+<h1>EMtrace tutorial</h1>
+<p><em>To read this offline, open <code>demo/DEMO.html</code> in a
+browser.</em></p>
+<style>
+table { border-collapse: collapse; }
+th, td { border: 1px solid rgba(128, 128, 128, 0.45); padding: 3px 8px; }
+thead th { border-bottom: 2px solid currentColor; vertical-align: bottom; }
+</style>
+
+<p>A worked example on real sequencing data, small enough to run on a
+laptop. It covers the four things EMtrace does:</p>
+<ol type="1">
+<li><strong>Virus detection</strong> with EM abundance estimation</li>
+<li><strong>Reference-based consensus assembly</strong></li>
+<li><strong>Real-time monitoring</strong> of a run in progress</li>
+<li><strong>16S rRNA profiling</strong> of a bacterial community</li>
+</ol>
+<p>Demos 1–5 use the command line; <a
+href="#demo-6-consensus-assembly-in-the-desktop-app">Demo 6</a> repeats
+Demo 3 in the desktop app.</p>
+<p>Run times below were measured on a 2023 MacBook Pro (Apple M2 Pro, 12
+cores, 16 GB RAM) with 8 threads.</p>
+<p><strong>Contents</strong></p>
+<ul>
+<li><a href="#before-you-start">Before you start</a></li>
+<li><a href="#demo-1-virus-detection-and-em-abundance">Demo 1: Virus
+detection and EM abundance</a></li>
+<li><a href="#demo-2-divergent-viruses-with-a-protein-search">Demo 2:
+Divergent viruses with a protein search</a></li>
+<li><a href="#demo-3-reference-based-consensus-assembly">Demo 3:
+Reference-based consensus assembly</a></li>
+<li><a href="#demo-4-real-time-monitoring">Demo 4: Real-time
+monitoring</a></li>
+<li><a href="#demo-5-16s-profiling-of-a-mock-community">Demo 5: 16S
+profiling of a mock community</a></li>
+<li><a href="#demo-6-consensus-assembly-in-the-desktop-app">Demo 6
+(GUI): Consensus assembly in the desktop app</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+<li><a href="#the-data">The demo data in detail</a></li>
+</ul>
+<p><a id="before-you-start"></a></p>
+<h2>Before you start</h2>
+<p><strong>The demo data.</strong> <code>demo/reads/</code> holds two
+small public libraries (<a href="#the-data">details</a>):</p>
+<ul>
+<li>12,000 nanopore reads of a pool of <em>Rhipicephalus bursa</em>
+ticks carrying Crimean–Congo haemorrhagic fever virus (CCHFV) and
+Jingmen tick virus (JMTV), for the virus demos (1–4 and 6);</li>
+<li>8,000 full-length 16S rRNA reads of the ZymoBIOMICS Gut Microbiome
+Standard, a mock community of known composition, for Demo 5.</li>
+</ul>
+<p><strong>1. Start EMtrace in a terminal.</strong> Installation is
+covered in the <a
+href="../docs/UserGuide.v1.0.html#installing-emtrace">User Guide</a>.
+The commands below call <code>emtrace</code>. Pick the route you
+installed by:</p>
+<ul>
+<li><p><strong>Installed from source</strong>
+(<code>pip install -e ".[gui]"</code>): activate the environment EMtrace
+was installed into.</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /path/to/EMtrace</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="bu">source</span> .venv/bin/activate</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">emtrace</span> <span class="at">--version</span></span></code></pre></div></li>
+<li><p><strong>Installed macOS app</strong> (<code>EMtrace.app</code>
+from the <code>.dmg</code>): the app's binary also runs the command-line
+interface. Point <code>emtrace</code> at it for this terminal
+session:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="bu">alias</span> emtrace=/Applications/EMtrace.app/Contents/MacOS/EMtrace</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">emtrace</span> <span class="at">--version</span></span></code></pre></div></li>
+</ul>
+<p>Each route should print the EMtrace version. The <code>alias</code>
+lasts only for the current terminal, so repeat it in any new terminal
+where you run <code>emtrace</code>.</p>
+<p><strong>2. Get the demo data.</strong> The demos run from a demo
+folder that holds <code>demo/reads/</code>:</p>
+<ul>
+<li><p><strong>Installed from source:</strong> the reads are already in
+the repository, in <code>demo/reads/</code>. The repository folder is
+your demo folder:</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /path/to/EMtrace</span></code></pre></div></li>
+<li><p><strong>Installed macOS app:</strong> the reads are not part of
+the app. Make a demo folder and download the <code>demo/</code> folder
+of the <a
+href="https://github.com/weinstein-bioinfo/EMtrace/tree/main/demo">EMtrace
+repository</a> into it (about 14 MB: the reads, this page and its
+figures):</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> ~/EMtrace-demo <span class="kw">&amp;&amp;</span> <span class="bu">cd</span> ~/EMtrace-demo</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-L</span> https://github.com/weinstein-bioinfo/EMtrace/archive/refs/heads/main.tar.gz <span class="dt">\</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">|</span> <span class="fu">tar</span> xz <span class="at">--strip-components</span><span class="op">=</span>1 EMtrace-main/demo</span></code></pre></div></li>
+</ul>
+<p>Run every command of the demos from this folder.</p>
+<p><strong>3. Set the database directory</strong> and install the three
+databases the demos use:</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">EMTRACE_DB_DIR</span><span class="op">=</span>/path/to/EMtrace-databases</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ex">emtrace</span> databases <span class="at">--install</span> minimap.refseq.abv.1g   <span class="co"># ~23 GB</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="ex">emtrace</span> databases <span class="at">--install</span> diamond.uniref.vi       <span class="co"># ~1.6 GB</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="ex">emtrace</span> databases <span class="at">--install</span> minimap.rrnDB.dedup     <span class="co"># ~0.4 GB, Demo 5 only</span></span></code></pre></div>
+<p><code>minimap.refseq.abv.1g</code> is the RefSeq archaeal, bacterial
+and viral set reduced to one genome per bacterial and archaeal genus,
+with all viral genomes kept. It is the database the User Guide
+recommends for <a
+href="../docs/UserGuide.v1.0.html#virus-surveillance-studies">vector
+samples</a> such as ticks.</p>
+<p><code>diamond.uniref.vi</code> (UniRef100 viral proteins) is the
+protein half of the <code>vi.chain2</code> strategy, used in <a
+href="#demo-2-divergent-viruses-with-a-protein-search">Demo 2</a>.</p>
+<p><code>minimap.rrnDB.dedup</code> (rrnDB 5.10 16S rRNA genes, one
+representative per named species) is the 16S reference of
+<code>--profile 16S</code>, used in <a
+href="#demo-5-16s-profiling-of-a-mock-community">Demo 5</a>. Skip it if
+you run only the virus demos.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;"></th>
+<th style="text-align: right;">Download</th>
+<th style="text-align: right;">On disk</th>
+<th style="text-align: right;">Download time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>minimap.refseq.abv.1g</code></td>
+<td style="text-align: right;">~16 GB</td>
+<td style="text-align: right;">~23 GB</td>
+<td style="text-align: right;">15 min</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>diamond.uniref.vi</code></td>
+<td style="text-align: right;">~0.5 GB</td>
+<td style="text-align: right;">~1.6 GB</td>
+<td style="text-align: right;">25 s</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>minimap.rrnDB.dedup</code></td>
+<td style="text-align: right;">~0.09 GB</td>
+<td style="text-align: right;">~0.4 GB</td>
+<td style="text-align: right;">5 s</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Total</strong></td>
+<td style="text-align: right;"><strong>~16 GB</strong></td>
+<td style="text-align: right;"><strong>~25 GB</strong></td>
+<td style="text-align: right;">~15-16 min</td>
+</tr>
+</tbody>
+</table>
+<br>
+
+<p><strong>Disk space:</strong> allow about 35 GB — 25 GB for the
+databases and a few GB for results.</p>
+<blockquote>
+<p><strong>No host filter.</strong> The demo skips host and background
+filtering: the <code>--pipe</code> lists leave out the filter step
+(<code>flt</code>), and Demo 4 passes <code>--hostgen 0</code>. You
+therefore do not have to download a tick or human genome, and tick reads
+simply stay unannotated. For your own samples, keep <code>flt</code> in
+the step list and pass <code>--bgfilter</code> with the host genome
+(default: <code>Homo_sapiens</code>).</p>
+</blockquote>
+<p><strong>4. Create the results folder</strong> in the demo folder. The
+demos write their results to <code>./demo-results</code>, and the joined
+input files of Demos 3, 5 and 6 and the watch folder of Demo 4 go there
+too:</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> demo-results</span></code></pre></div>
+<p><a id="demo-1-virus-detection-and-em-abundance"></a></p>
+<h2>Demo 1: Virus detection and EM abundance</h2>
+<p><strong>What it shows:</strong> the viruses the original study
+confirmed by PCR are identified from the first 4,000 reads of the
+library.</p>
+<p><strong>Run</strong> (one batch, no assembly). The reads in this
+library are short (mean at 345 bp), thus keep everything above 100 bp
+with <code>--minreadlength 100</code>:</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">emtrace</span> run <span class="dt">\</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--reads</span>  demo/reads/ticks58-37_0.fastq.gz <span class="dt">\</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--sample</span> demo1 <span class="dt">\</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">--res</span>    ./demo-results <span class="dt">\</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">--pipe</span>   pore,chop,ann,em,rep <span class="dt">\</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">--anns</span>   abv.1g <span class="dt">\</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">--minreadlength</span> 100 <span class="dt">\</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">--numth</span>  8 <span class="dt">\</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">-v</span></span></code></pre></div>
+<p><strong>Expected run time:</strong> <code>~2 min</code>.</p>
+<p><strong>Expected output.</strong> Under
+<code>demo-results/demo1/</code>:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Path</th>
+<th style="text-align: left;">Contents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>reads/</code></td>
+<td style="text-align: left;">Preprocessed reads, partitioned into
+viral, phage, bacterial and unannotated bins</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>annotation/annot1.tsv</code></td>
+<td style="text-align: left;">One row per read: subject accession,
+taxon, score</td>
+</tr>
+<tr>
+<td
+style="text-align: left;"><code>results/reports/abund_table.tsv</code></td>
+<td style="text-align: left;">Per-taxon EM abundance and read
+counts</td>
+</tr>
+<tr>
+<td
+style="text-align: left;"><code>results/reports/stats_report.html</code></td>
+<td style="text-align: left;">Interactive report (open in a
+browser)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>results/plots/</code></td>
+<td style="text-align: left;">Sankey, sunburst and stacked-bar figures,
+QC histograms</td>
+</tr>
+</tbody>
+</table>
+<br>
+
+<p>In <code>abund_table.tsv</code>, look for
+<strong>Orthonairovirus</strong> (CCHFV) and
+<strong>Jingmenvirus</strong> (JMTV). A taxon counts as detected here
+once it has at least 10 reads, the threshold used throughout this demo,
+so that a handful of spurious alignments to a large database is not
+reported as a finding:</p>
+<p><strong>Table 1 |</strong> Viruses detected in the first 4,000 reads
+(<code>abv.1g</code>).</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Taxon</th>
+<th style="text-align: right;">Reads (<code>readn_em</code>)</th>
+<th style="text-align: right;">EM probability (<code>prob</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Orthonairovirus (CCHFV)</td>
+<td style="text-align: right;">90</td>
+<td style="text-align: right;">0.180</td>
+</tr>
+<tr>
+<td style="text-align: left;">Jingmenvirus (JMTV)</td>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;">0.024</td>
+</tr>
+</tbody>
+</table>
+<br>
+
+<p>Most reads in the file are tick host sequence and stay unannotated
+(<code>stats_report.html</code>), which is expected for a field library
+analysed without a host filter.</p>
+<p><strong>The point of the demo:</strong> both viruses that Ergünay et
+al. confirmed by PCR in this pool are recovered from 4,000 reads —
+roughly what a MinION writes in its first few minutes.</p>
+<p>Note how differently the two sit above the threshold. CCHFV is
+comfortable at 90 reads, but JMTV clears it with 12 — a fragile
+detection, close enough to the line that a smaller batch or a sample
+with less virus would miss it. A count that marginal is where a more
+sensitive search earns its place (<a
+href="#demo-2-divergent-viruses-with-a-protein-search">Demo 2</a>).</p>
+<p><a id="demo-2-divergent-viruses-with-a-protein-search"></a></p>
+<h2>Demo 2: Divergent viruses with a protein search</h2>
+<p><strong>What it shows:</strong> chaining a protein search after the
+nucleotide search recovers viruses too divergent for nucleotide
+alignment, using the <code>vi.chain2</code> strategy.</p>
+<p><strong>Run</strong> on the same batch, sending the reads minimap2
+leaves unassigned to DIAMOND:</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">emtrace</span> run <span class="dt">\</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--reads</span>  demo/reads/ticks58-37_0.fastq.gz <span class="dt">\</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--sample</span> demo2 <span class="dt">\</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">--res</span>    ./demo-results <span class="dt">\</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">--pipe</span>   pore,chop,ann,em,rep <span class="dt">\</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">--anns</span>   vi.chain2 <span class="dt">\</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">--minreadlength</span> 100 <span class="dt">\</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">--numth</span>  8 <span class="dt">\</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">-v</span></span></code></pre></div>
+<p><strong>Expected run time:</strong> <code>2-3 min</code>.</p>
+<p><strong>Expected output.</strong> As Demo 1, plus a second hit table,
+<code>annotation/annot1.diamond.uniref.vi.tsv</code>, holding the
+protein hits. Compare <code>demo2/results/reports/abund_table.tsv</code>
+with Demo 1's:</p>
+<p><strong>Table 2 |</strong> Viral reads with the nucleotide search
+alone (Demo 1) and with the protein search added (Demo 2,
+<code>vi.chain2</code>).</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Taxon</th>
+<th style="text-align: right;">Demo 1 (<code>abv.1g</code>)</th>
+<th style="text-align: right;">Demo 2 (<code>vi.chain2</code>)</th>
+<th style="text-align: right;">Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Jingmenvirus (JMTV)</td>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;">276</td>
+<td style="text-align: right;">23×</td>
+</tr>
+<tr>
+<td style="text-align: left;">Orthonairovirus (CCHFV)</td>
+<td style="text-align: right;">90</td>
+<td style="text-align: right;">134</td>
+<td style="text-align: right;">1.5×</td>
+</tr>
+<tr>
+<td style="text-align: left;">Mivirus (Bole tick virus 3)</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">33</td>
+<td style="text-align: right;">detected</td>
+</tr>
+<tr>
+<td style="text-align: left;">Phlebovirus</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">below threshold</td>
+</tr>
+</tbody>
+</table>
+<br>
+
+<p>Reads are <code>readn_em</code>, the EM-adjusted count. CCHFV appears
+as two species rows in Demo 2 (<em>Orthonairovirus
+parahaemorrhagiae</em> and <em>O. haemorrhagiae</em>); the genus total
+is given here.</p>
+<p>JMTV gains most, from a marginal detection to an unambiguous one, and
+<em>Mivirus</em> appears only here. CCHFV gains least: it has closer
+RefSeq relatives for the nucleotide search to find.</p>
+<blockquote>
+<p><strong>Caution.</strong> The protein search uses a permissive
+DIAMOND bitscore threshold (≥ 80) because nanopore errors break reads
+into short ORFs. Treat a species supported only by protein hits as
+tentative and confirm it with a nucleotide hit, an assembly or a second
+method.</p>
+</blockquote>
+<p><a id="demo-3-reference-based-consensus-assembly"></a></p>
+<h2>Demo 3: Reference-based consensus assembly</h2>
+<p><strong>What it shows:</strong> EMtrace picks reference genomes
+automatically from the annotation hits, including one per segment of a
+segmented virus, and builds consensus sequences.</p>
+<p><strong>Run</strong> on all three batches together. The step list
+adds <code>ass</code> (assembly), which the <code>main</code> workflow
+does not include:</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> demo/reads/ticks58-37_<span class="pp">*</span>.fastq.gz <span class="op">&gt;</span> demo-results/ticks58-37_12k.fastq.gz</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="ex">emtrace</span> run <span class="dt">\</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">--reads</span>  demo-results/ticks58-37_12k.fastq.gz <span class="dt">\</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">--sample</span> demo3 <span class="dt">\</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">--res</span>    ./demo-results <span class="dt">\</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">--pipe</span>   pore,chop,ann,em,ass,rep,plot <span class="dt">\</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">--anns</span>   abv.1g <span class="dt">\</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">--ref_auto</span> <span class="dt">\</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">--no-medaka</span> <span class="dt">\</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">--minreadlength</span> 100 <span class="dt">\</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>  <span class="at">--numth</span>  8 <span class="dt">\</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>  <span class="at">-v</span></span></code></pre></div>
+<p><code>--no-medaka</code> keeps the demo short and dependency-free.
+Medaka polishing is on by default and needs a basecaller-matched model,
+which this SRA deposit does not carry in its read headers.</p>
+<p><strong>Expected run time:</strong> <code> ~2 min</code>.</p>
+<p><strong>Expected output.</strong> <code>demo3/assembly/</code> holds
+the consensus sequences (<code>consensus.fa</code>), the alignment
+(<code>reads.refgen.md.bam</code>), the variants (<code>vcf.gz</code>)
+and the selection log (<code>ref_selection.tsv</code>). Automatic
+selection ran per segment and chose four references:</p>
+<p><strong>Table 3 |</strong> References chosen automatically: reads,
+mean depth, positions with at least one read (as in
+<code>coverage.html</code>) and consensus coverage (positions with at
+least 10 reads).</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Virus</th>
+<th style="text-align: left;">Segment</th>
+<th style="text-align: left;">Reference</th>
+<th style="text-align: right;">Length (bp)</th>
+<th style="text-align: right;">Reads</th>
+<th style="text-align: right;">Mean depth</th>
+<th style="text-align: right;">≥ 1 read</th>
+<th style="text-align: right;">Coverage</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">CCHFV</td>
+<td style="text-align: left;">L</td>
+<td style="text-align: left;">NC_078225.1</td>
+<td style="text-align: right;">12,170</td>
+<td style="text-align: right;">261</td>
+<td style="text-align: right;">10.4×</td>
+<td style="text-align: right;">99.2%</td>
+<td style="text-align: right;">65.1%</td>
+</tr>
+<tr>
+<td style="text-align: left;">CCHFV</td>
+<td style="text-align: left;">M</td>
+<td style="text-align: left;">NC_078227.1</td>
+<td style="text-align: right;">5,416</td>
+<td style="text-align: right;">193</td>
+<td style="text-align: right;">16.3×</td>
+<td style="text-align: right;">97.9%</td>
+<td style="text-align: right;">86.6%</td>
+</tr>
+<tr>
+<td style="text-align: left;">CCHFV</td>
+<td style="text-align: left;">S</td>
+<td style="text-align: left;">NC_078226.1</td>
+<td style="text-align: right;">1,659</td>
+<td style="text-align: right;">104</td>
+<td style="text-align: right;">32.5×</td>
+<td style="text-align: right;">99.1%</td>
+<td style="text-align: right;">94.8%</td>
+</tr>
+<tr>
+<td style="text-align: left;">JMTV</td>
+<td style="text-align: left;">4</td>
+<td style="text-align: left;">NC_024111.1</td>
+<td style="text-align: right;">2,794</td>
+<td style="text-align: right;">178</td>
+<td style="text-align: right;">16.5×</td>
+<td style="text-align: right;">87.4%</td>
+<td style="text-align: right;">47.3%</td>
+</tr>
+</tbody>
+</table>
+<br>
+
+<p>Coverage is the fraction of the reference called as non-N bases;
+positions below the 10× depth threshold are masked. Overall, 736 reads
+mapped at a mean depth of 14.3×
+(<code>results/reports/stats_assembly.csv</code>).</p>
+<p><strong>Open <code>results/plots/coverage.html</code> in a
+browser.</strong> One panel per selected reference plots read depth
+along the genome; hover for the depth at a position, and drag to zoom
+into a region. The reads spread along the whole of every CCHFV segment
+instead of piling up in one place, which is what a genuine virus looks
+like: a spurious hit (a conserved motif, a contaminant, a low-complexity
+stretch) shows as a single spike. Static copies are in
+<code>coverage.png</code> and <code>coverage.pdf</code>.</p>
+<p>The plot's panel titles count every position with at least one read
+(the ≥ 1 read column of Table 3), so their percentages are higher than
+the consensus coverage, which counts only positions with at least 10
+reads. The two together show where more sequencing would fill the
+consensus: the reads already reach almost the whole CCHFV genome, and
+the dips below 10× in the L segment are what remains masked.</p>
+<p><strong>Read <code>ref_selection.tsv</code></strong> — it explains
+each decision. Two things are visible there:</p>
+<ul>
+<li><strong>The selected CCHFV references are strain AP92</strong>, the
+Aigai (genogroup VI) lineage. Selection found the right divergent
+lineage on its own, from the reads, with no reference given.</li>
+<li><strong>Only one JMTV segment was assembled.</strong> Candidates for
+the other three were found but rejected with "reads already covered by a
+chosen accession": the greedy read cover takes the reference that best
+explains the reads not yet covered, and at this depth JMTV's remaining
+segments had too few reads of their own. A fifth candidate was dropped
+as "species below min_reads=10".</li>
+</ul>
+<p><strong>What to look for:</strong> coverage tracks depth, not virus.
+CCHFV's three segments fall from 94.8% to 65.1% as they get longer and
+shallower, and the one JMTV segment, with the fewest reads to spread
+over 2.8 kb, reaches 47.3%. Partial coverage from 12,000 reads is
+expected, not a failure. Demo 4 shows the same effect as a progression,
+batch by batch.</p>
+<p><a id="demo-4-real-time-monitoring"></a></p>
+<h2>Demo 4: Real-time monitoring</h2>
+<p><strong>What it shows:</strong> EMtrace watches a directory and
+analyses each batch of reads as it arrives, the way it would during a
+MinKNOW run.</p>
+<p><strong>1. Start the monitor</strong> on an empty directory:</p>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> demo-results/minknow-sim</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="ex">emtrace</span> watch <span class="dt">\</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">--dir</span>    demo-results/minknow-sim <span class="dt">\</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">--sample</span> demo4 <span class="dt">\</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">--res</span>    ./demo-results <span class="dt">\</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">--anns</span>   abv.1g <span class="dt">\</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">--hostgen</span> 0 <span class="dt">\</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">--report</span> <span class="dt">\</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">--minreadlength</span> 100 <span class="dt">\</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">--numth</span>  8 <span class="dt">\</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>  <span class="at">-v</span></span></code></pre></div>
+<p>It waits, printing nothing until a file appears.</p>
+<p><strong>2. In a second terminal, feed it the batches</strong>,
+imitating a sequencer writing files:</p>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /path/to/EMtrace    <span class="co"># the demo folder</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> f <span class="kw">in</span> demo/reads/ticks58-37_<span class="pp">*</span>.fastq.gz<span class="kw">;</span> <span class="cf">do</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cp</span> <span class="st">&quot;</span><span class="va">$f</span><span class="st">&quot;</span> demo-results/minknow-sim/</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">sleep</span> 120</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="cf">done</span></span></code></pre></div>
+<p>The 120-second gap gives each batch time to finish before the next
+arrives — a batch of 4,000 reads takes about 90 s here, so the monitor
+is idle and waiting when each new file lands. On a real run MinKNOW
+writes a file every few minutes.</p>
+<p><strong>3. Watch the console.</strong> After each batch EMtrace
+prints the top taxa by EM abundance. Expect Orthonairovirus from the
+first batch, with the ranking changing from 2nd to the 1st in the top
+taxa list.</p>
+<p><strong>4. Stop with Ctrl+C.</strong> EMtrace finishes the current
+batch, merges all batches into the job's standard folders and writes the
+final report.</p>
+<p><strong>Expected run time:</strong> 85–96 s per batch (median 90 s),
+and 53 s for the merge and report on Ctrl+C. Each batch is processed
+well inside the 120 s between files, thus keeping pase with a typical
+MinKNOW sequencer.</p>
+<p><strong>Expected output.</strong> Under
+<code>demo-results/demo4/</code>:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Path</th>
+<th style="text-align: left;">Contents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td
+style="text-align: left;"><code>watch/batches/batch_000N/</code></td>
+<td style="text-align: left;">One directory per batch, with its reads,
+annotation and <code>batch.json</code> (batch number, read count, source
+file)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>watch/realtime_annot.tsv</code></td>
+<td style="text-align: left;">Cumulative hit table, one row per read and
+subject, growing with each batch</td>
+</tr>
+<tr>
+<td
+style="text-align: left;"><code>watch/results/abund_table.tsv</code></td>
+<td style="text-align: left;">The live abundance table, updated after
+every batch</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>reads/</code>,
+<code>annotation/</code>, <code>results/</code></td>
+<td style="text-align: left;">The merged job, written on Ctrl+C</td>
+</tr>
+</tbody>
+</table>
+<br>
+
+<p>The merged result matches a single run over the same 12,000 reads
+(Demo 3):</p>
+<p><strong>Table 4 |</strong> Merged watch-mode result against a single
+run over the same 12,000 reads.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Taxon</th>
+<th style="text-align: right;">Watch mode (Demo 4)</th>
+<th style="text-align: right;">Single run (Demo 3)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Orthonairovirus (CCHFV)</td>
+<td style="text-align: right;">308</td>
+<td style="text-align: right;">307</td>
+</tr>
+<tr>
+<td style="text-align: left;">Jingmenvirus (JMTV)</td>
+<td style="text-align: right;">35</td>
+<td style="text-align: right;">34</td>
+</tr>
+</tbody>
+</table>
+<br>
+
+<p>Processing the library batch by batch therefore costs nothing in
+accuracy. EM is recomputed from scratch at the merge, so a difference of
+a read or two from the live table is normal.</p>
+<blockquote>
+<p><strong>No sequencing clock.</strong> SRA removed the per-read start
+times from this deposit, so EMtrace reports batches by read count only,
+with no sequencing time or throughput ratio. On a live MinKNOW run,
+where reads carry <code>start_time</code>, it also reports how far ahead
+of the sequencer it is running.</p>
+</blockquote>
+<p><a id="demo-5-16s-profiling-of-a-mock-community"></a></p>
+<h2>Demo 5: 16S profiling of a mock community</h2>
+<p><strong>What it shows:</strong> EMtrace profiles a full-length 16S
+amplicon library at species level with the bundled 16S settings, and the
+profile can be checked against the known composition of a mock
+community.</p>
+<p><strong>Run</strong> on both files together, with the 16S
+profile:</p>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> demo/reads/gutmock_r1_<span class="pp">*</span>.fastq.gz <span class="op">&gt;</span> demo-results/gutmock_r1_8k.fastq.gz</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="ex">emtrace</span> run <span class="dt">\</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">--reads</span>   demo-results/gutmock_r1_8k.fastq.gz <span class="dt">\</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">--sample</span>  demo5 <span class="dt">\</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">--res</span>     ./demo-results <span class="dt">\</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">--profile</span> 16S <span class="dt">\</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">--pipe</span>    pore,chop,ann,em,rep <span class="dt">\</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">--numth</span>   8 <span class="dt">\</span></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">-v</span></span></code></pre></div>
+<p><code>--profile 16S</code> switches to the 16S profiling: the
+<code>16S.rrnDB.dedup</code> annotation strategy, reads kept between
+1,200 and 1,800 bp at mean quality ≥ 10, reads split at internal
+adapters (chimeric amplicons), 25 secondary alignments per read for the
+EM to weigh, a softer EM (temperature 10), and a 1% tail trim: the
+smallest taxa that together hold at most 1% of the reads are dropped
+from the reports. This removes the long tail of single-read neighbours
+that full-length 16S produces against a 16S database. No host filtering
+for 16S data, so <code>flt</code> is left out of the step list.</p>
+<p><strong>Expected run time:</strong> <code>~6 min</code>.</p>
+<p><strong>Expected output.</strong> Under
+<code>demo-results/demo5/</code>, the same layout as <a
+href="#demo-1-virus-detection-and-em-abundance">Demo 1</a>.
+<code>results/reports/abund_table.tsv</code> gives the species and genus
+of every taxon with its EM probability (<code>prob</code>) and
+EM-adjusted read count (<code>readn_em</code>).
+<code>results/EM.taxid_prob.tsv</code> holds the EM estimate for every
+taxon, before the tail trim.</p>
+<p>Of the 8,000 reads, 6,874 (86%) pass the 1,200–1,800 bp, Q ≥ 10
+filter, and every one of them is assigned to a bacterial 16S sequence
+(<code>results/reports/stats_report.html</code>).</p>
+<p>Compare the genera with the certificate's 16S-only composition, the
+truth used in the <a href="#citing-emtrace">EMtrace manuscript</a>:</p>
+<p><strong>Table 5 |</strong> Genus composition of the Gut Microbiome
+Standard: certificate (16S-only) against EMtrace.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Genus</th>
+<th style="text-align: right;">Expected (16S-only, %)</th>
+<th style="text-align: right;">EMtrace (%)</th>
+<th style="text-align: right;">Reads (<code>readn_em</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><em>Faecalibacterium</em></td>
+<td style="text-align: right;">17.6</td>
+<td style="text-align: right;">19.0</td>
+<td style="text-align: right;">1,304</td>
+</tr>
+<tr>
+<td style="text-align: left;"><em>Veillonella</em></td>
+<td style="text-align: right;">15.9</td>
+<td style="text-align: right;">27.1</td>
+<td style="text-align: right;">1,863</td>
+</tr>
+<tr>
+<td style="text-align: left;"><em>Escherichia</em></td>
+<td style="text-align: right;">12.1</td>
+<td style="text-align: right;">11.1</td>
+<td style="text-align: right;">760</td>
+</tr>
+<tr>
+<td style="text-align: left;"><em>Bacteroides</em></td>
+<td style="text-align: right;">9.9</td>
+<td style="text-align: right;">20.4</td>
+<td style="text-align: right;">1,403</td>
+</tr>
+<tr>
+<td style="text-align: left;"><em>Roseburia</em></td>
+<td style="text-align: right;">9.9</td>
+<td style="text-align: right;">2.5</td>
+<td style="text-align: right;">170</td>
+</tr>
+<tr>
+<td style="text-align: left;"><em>Limosilactobacillus</em></td>
+<td style="text-align: right;">9.6</td>
+<td style="text-align: right;">1.2</td>
+<td style="text-align: right;">81</td>
+</tr>
+<tr>
+<td style="text-align: left;"><em>Bifidobacterium</em></td>
+<td style="text-align: right;">8.8</td>
+<td style="text-align: right;">2.4</td>
+<td style="text-align: right;">163</td>
+</tr>
+<tr>
+<td style="text-align: left;"><em>Fusobacterium</em></td>
+<td style="text-align: right;">7.5</td>
+<td style="text-align: right;">2.1</td>
+<td style="text-align: right;">143</td>
+</tr>
+<tr>
+<td style="text-align: left;"><em>Prevotella</em></td>
+<td style="text-align: right;">5.0</td>
+<td style="text-align: right;">8.0</td>
+<td style="text-align: right;">549</td>
+</tr>
+<tr>
+<td style="text-align: left;"><em>Clostridioides</em></td>
+<td style="text-align: right;">2.6</td>
+<td style="text-align: right;">5.4</td>
+<td style="text-align: right;">372</td>
+</tr>
+<tr>
+<td style="text-align: left;"><em>Akkermansia</em></td>
+<td style="text-align: right;">0.97</td>
+<td style="text-align: right;">0.9*</td>
+<td style="text-align: right;">64*</td>
+</tr>
+<tr>
+<td style="text-align: left;"><em>Methanobrevibacter</em>
+(archaeon)</td>
+<td style="text-align: right;">0.07</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: left;">Other (taxa outside the standard)</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">1</td>
+</tr>
+</tbody>
+</table>
+<br>
+
+<p>* In the EM estimate (<code>results/EM.taxid_prob.tsv</code>), but
+dropped from the reports by the 1% tail trim.</p>
+<p>Every reported genus is represented by the right species:
+<em>Veillonella rogosae</em>, <em>Bacteroides fragilis</em>,
+<em>Faecalibacterium prausnitzii</em>, <em>Escherichia coli</em>,
+<em>Prevotella corporis</em>, <em>Clostridioides difficile</em>,
+<em>Roseburia hominis</em>, <em>Bifidobacterium adolescentis</em>,
+<em>Fusobacterium nucleatum</em> and <em>Limosilactobacillus
+fermentum</em>, as on the certificate.</p>
+<p>Four trace members (<em>Salmonella</em>, <em>Enterococcus</em>,
+<em>Clostridium</em> and the archaeon <em>Methanobrevibacter</em>; ≤
+0.07% each), below the 10-read threshold.</p>
+<p><strong>What to look for:</strong></p>
+<ul>
+<li><strong>The taxon list.</strong> The report lists 10 of the 11
+bacterial genera expected above the threshold, each with the correct
+species, and no genus or species outside the standard. The eleventh,
+<em>Akkermansia</em> (64 reads, 0.9%), is in the EM estimate but falls
+to the 1% tail trim, together with three single reads (67 reads, 0.97%
+of the library). The only taxon outside the standard is a single read on
+<em>Mycetocola zhujimingii</em>, far below the threshold. On the full
+replicates the manuscript found no false-positive genus at any
+batch.</li>
+<li><strong>The proportions.</strong> Genus L1 (sum of absolute
+differences from the truth, 0–2) is 0.58, as on the full replicates.
+Most of it comes from the data: every tool in the manuscript over-called
+<em>Bacteroides</em> and <em>Veillonella</em> and under-called
+<em>Roseburia</em>, <em>Bifidobacterium</em> and
+<em>Limosilactobacillus</em>.</li>
+<li><strong>How early the answer settles.</strong> The 8,000 reads are
+the first 17 min of a run of about 2 h. In the manuscript the first
+4,000-read batch was within 0.012 of the final genus L1, so a few
+minutes of sequencing and analysis already give a close estimate of the
+whole run's profile.</li>
+</ul>
+<p>To score it yourself, the truth table and the synonym map used in the
+manuscript are <code>data/truth/gutmock_16S_truth.tsv</code> and
+<code>gutmock_16S_collapse.tsv</code> in <a
+href="https://github.com/weinstein-bioinfo/EMtrace-benchmark">EMtrace-benchmark</a>.</p>
+<p><a id="demo-6-consensus-assembly-in-the-desktop-app"></a></p>
+<h2>Demo 6: Consensus assembly in the desktop app</h2>
+<p><strong>What it shows:</strong> the analysis of <a
+href="#demo-3-reference-based-consensus-assembly">Demo 3</a> run from
+the EMtrace desktop app instead of the command line, with the coverage
+of each assembled genome inspected in the app's Assembly view.</p>
+<p><strong>1. Prepare the input.</strong> The app takes one FASTQ file
+per job, so join the three batches as in Demo 3 (skip this if you ran
+Demo 3; the file is already there):</p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> demo/reads/ticks58-37_<span class="pp">*</span>.fastq.gz <span class="op">&gt;</span> demo-results/ticks58-37_12k.fastq.gz</span></code></pre></div>
+<p><strong>2. Start the app.</strong></p>
+<ul>
+<li><strong>Installed macOS app:</strong> double-click
+<strong>EMtrace</strong> in <em>Applications</em>. The first start shows
+a security warning; see <a
+href="../docs/UserGuide.v1.0.html#opening-the-app">Opening the
+app</a>.</li>
+<li><strong>Installed from source:</strong> activate the environment as
+in <a href="#before-you-start">Before you start</a> and run
+<code>emtrace gui</code>.</li>
+</ul>
+<p>The window has three panels: the step list (left), the content area
+with its tabs (centre) and the live log (bottom).</p>
+<p><strong>3. Create the job.</strong> Choose <strong>File › New
+Job…</strong> (or <strong>New Job</strong> on the toolbar) and fill
+in:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Field</th>
+<th style="text-align: left;">Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Job name</td>
+<td style="text-align: left;"><code>demo6</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Input reads</td>
+<td style="text-align: left;"><code>ticks58-37_12k.fastq.gz</code> in
+the <code>demo-results</code> folder (<strong>Browse…</strong>)</td>
+</tr>
+<tr>
+<td style="text-align: left;">Reads R2 (paired-end)</td>
+<td style="text-align: left;">leave empty</td>
+</tr>
+<tr>
+<td style="text-align: left;">Output base directory</td>
+<td style="text-align: left;">the <code>demo-results</code> folder used
+by the other demos</td>
+</tr>
+</tbody>
+</table>
+<br>
+
+<p><strong>4. Set the configuration</strong> on the
+<strong>Config</strong> tab (<strong>View › Config</strong>). Keep
+<em>Profile</em> at <em>default (virome)</em> and change these settings,
+the GUI equivalents of Demo 3's options:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Section</th>
+<th style="text-align: left;">Setting</th>
+<th style="text-align: left;">Value</th>
+<th style="text-align: left;">Demo 3 option</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Runtime</td>
+<td style="text-align: left;">Threads</td>
+<td style="text-align: left;">8</td>
+<td style="text-align: left;"><code>--numth 8</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Preprocessing › Chopper</td>
+<td style="text-align: left;">Min length (bp)</td>
+<td style="text-align: left;">100</td>
+<td style="text-align: left;"><code>--minreadlength 100</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Annotation</td>
+<td style="text-align: left;">Annotation preset</td>
+<td style="text-align: left;"><code>abv.1g</code></td>
+<td style="text-align: left;"><code>--anns abv.1g</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Assembly</td>
+<td style="text-align: left;">Auto-select references</td>
+<td style="text-align: left;">on</td>
+<td style="text-align: left;"><code>--ref_auto</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Assembly › Medaka polishing (ONT)</td>
+<td style="text-align: left;">Polish consensus with Medaka</td>
+<td style="text-align: left;">off</td>
+<td style="text-align: left;"><code>--no-medaka</code></td>
+</tr>
+</tbody>
+</table>
+<br>
+
+<p>Click <strong>Apply Changes</strong>, then <strong>File › Save
+Config…</strong> to keep the settings with the job
+(<code>demo-results/demo6/config.yaml</code>).</p>
+<p><strong>5. Choose the steps.</strong> In the step list, tick
+<strong>porechop</strong>, <strong>chopper</strong>,
+<strong>annotate</strong>, <strong>em</strong>,
+<strong>assembly</strong>, <strong>report</strong> and
+<strong>plot</strong>. Leave <strong>bgfilter</strong> (host filtering)
+and the <em>Pack &amp; Clean</em> steps unticked. This is Demo 3's
+<code>--pipe pore,chop,ann,em,ass,rep,plot</code>.</p>
+<p><strong>6. Run.</strong> Click <strong>Run ▶</strong> on the toolbar
+(or <strong>Run › Run Pipeline</strong>). Each step shows ● while it
+runs and ✓ when it finishes, and the log panel follows the run.</p>
+<p><strong>Expected run time:</strong> <code>~2 min</code></p>
+<p><img src="img/demo6_config.png" alt="EMtrace Config tab after the Demo 6 run" width="100%"><br>
+<strong>Figure 1 | Config tab after the run.</strong> Step list (left):
+the seven ticked steps finished (✓); bgfilter and Pack &amp; Clean were
+left out. Assembly section: Auto-select references on, Medaka polishing
+off. Log panel (bottom): the plot step writing <code>coverage.png</code>
+and <code>coverage.html</code>.</p>
+<p><strong>7. Inspect the results.</strong> The output in
+<code>demo-results/demo6/</code> is the same as Demo 3's, with the same
+four references and the same read counts. The app shows it in its
+tabs:</p>
+<ul>
+<li><strong>Assembly</strong> (<strong>View › Assembly</strong>): the
+coverage strip for the segment chosen under <em>Segment:</em>, with read
+depth along the reference, positions below the 10× consensus threshold
+shaded red, the threshold line and the variant positions in a track
+below. The <em>Segments</em> table summarises every reference (length,
+mean depth, low-coverage share, variants, completeness); click a row to
+switch segment, or click a variant in the variant table to jump to
+it.</li>
+<li><strong>Figures</strong> (<strong>View › Figures</strong>): the
+generated plots. <code>coverage.png</code> shows in the app; selecting
+<code>coverage.html</code>, the interactive depth plot of <a
+href="#demo-3-reference-based-consensus-assembly">Demo 3</a>, opens it
+in your web browser (the macOS app leaves out the in-app HTML viewer to
+save space).</li>
+<li><strong>Abundance</strong> and <strong>Tables</strong>: the EM
+abundance (stacked bar and sunburst) and the abundance and annotation
+tables of Demo 1, for all 12,000 reads.</li>
+</ul>
+<p><img src="img/demo6_assembly_L.png" alt="EMtrace Assembly tab, CCHFV L segment" width="100%"><br>
+<strong>Figure 2 | Assembly tab, CCHFV L segment (NC_078225.1).</strong>
+The Segments table lists the four selected references; its Completeness
+column is the consensus coverage of Table 3. Below it: read depth along
+the 12 kb segment with the 10× threshold (dashed), the variant positions
+and the variant table. At 10.4× mean depth the reads reach almost every
+position, but a third of the segment stays below 10× and is masked
+(red), leaving 65.1% called.</p>
+<p><img src="img/demo6_abundance.png" alt="EMtrace Abundance tab, top 10 genera" width="100%"><br>
+<strong>Figure 3 | Abundance tab.</strong> The ten most abundant genera
+by EM read count (<em>Rank: Auto</em>), with the EM probability on each
+bar. <em>Orthonairovirus</em> (CCHFV) ranks first over all 12,000 reads
+(p = 0.23) and <em>Jingmenvirus</em> (JMTV) seventh; <em>Other</em> sums
+the remaining genera.</p>
+<p><strong>What to look for:</strong> step through the four segments in
+the Assembly tab. Each CCHFV segment is covered from end to end, and the
+red-shaded stretches show which parts of the consensus are masked below
+10×.</p>
+<p><a id="troubleshooting"></a></p>
+<h2>Troubleshooting</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Problem</th>
+<th style="text-align: left;">Likely cause and fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>database not found</code></td>
+<td style="text-align: left;"><code>EMTRACE_DB_DIR</code> is unset or
+points elsewhere. Check <code>emtrace databases --list</code>.</td>
+</tr>
+<tr>
+<td style="text-align: left;">A required tool is missing at startup</td>
+<td style="text-align: left;">Install the external tools from Bioconda;
+see the <a
+href="../docs/UserGuide.v1.0.html#installing-dependencies">User
+Guide</a>.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Fewer viral reads than expected, or a
+virus missing</td>
+<td style="text-align: left;">These viruses are divergent. If a single
+batch gives too few reads, run all three (<code>Demo 3</code>) or try
+<code>--anns vi.chain2</code>, whose protein search is less sensitive to
+sequence distance.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Assembly produces no consensus</td>
+<td style="text-align: left;"><code>--ref_auto</code> needs at least 10
+reads on a reference. Check that annotation found the viruses
+first.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Medaka warnings</td>
+<td style="text-align: left;">Medaka is optional and skipped with a
+warning if absent. The demo passes <code>--no-medaka</code>.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Watch mode ignores files already in the
+directory</td>
+<td style="text-align: left;">By design. Pass
+<code>--scan-existing</code>, or copy the files in after the monitor
+starts.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Demo 5 keeps far fewer than 8,000
+reads</td>
+<td style="text-align: left;"><code>--profile 16S</code> keeps reads of
+1,200–1,800 bp at mean quality ≥ 10. Check that the profile is set;
+without it the virus defaults apply.</td>
+</tr>
+</tbody>
+</table>
+<br>
+
+<p><a id="the-data"></a></p>
+<h2>The demo data in detail</h2>
+<p><code>demo/reads/</code> holds two libraries: a tick field library
+for the virus demos (1–4 and 6) and a 16S mock community for <a
+href="#demo-5-16s-profiling-of-a-mock-community">Demo 5</a>.</p>
+<p><a id="tick-pool-58-37-demos-1-4"></a></p>
+<h3>Tick pool 58-37 (Demos 1–4 and 6)</h3>
+<p><code>demo/reads/</code> holds 12,000 nanopore reads (3.8 MB) from
+<strong>tick pool 58-37</strong>, a field library of 301 pooled
+<em>Rhipicephalus bursa</em> ticks collected in Turkey, published by
+Ergünay et al. 2023 (<em>Front. Microbiol.</em> 14:1177651; BioProject
+PRJNA878809, run SRR21504617). These are the first 12,000 reads of the
+public deposit, split into three files of 4,000:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">File</th>
+<th style="text-align: right;">Reads</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>ticks58-37_0.fastq.gz</code></td>
+<td style="text-align: right;">4,000</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>ticks58-37_1.fastq.gz</code></td>
+<td style="text-align: right;">4,000</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>ticks58-37_2.fastq.gz</code></td>
+<td style="text-align: right;">4,000</td>
+</tr>
+</tbody>
+</table>
+<br>
+
+<p>The pool contains two viruses confirmed by PCR in the original
+study:</p>
+<ul>
+<li><strong>Crimean–Congo haemorrhagic fever virus</strong> (CCHFV,
+genus <em>Orthonairovirus</em>), a segmented bunyavirus with L, M and S
+segments. These sequences belong to the divergent Aigai virus (genogroup
+VI, AP92-like) lineage.</li>
+<li><strong>Jingmen tick virus</strong> (JMTV, genus
+<em>Jingmenvirus</em>), a segmented flavi-like virus with four
+segments.</li>
+</ul>
+<p>The original study also reported two further viruses from sequence
+data alone, <em>Mivirus</em> (Bole tick virus 3) and
+<em>Phlebovirus</em> (brown dog tick phlebovirus 2); both turn up in <a
+href="#demo-2-divergent-viruses-with-a-protein-search">Demo 2</a>, once
+a protein search is added.</p>
+<blockquote>
+<p><strong>Note.</strong> The reads come from SRA already
+adapter-trimmed and quality-filtered by the original authors, and SRA
+removed the per-read start times. EMtrace's own preprocessing is
+therefore close to a no-op on this library, and watch mode reports no
+sequencing clock (<a href="#demo-4-real-time-monitoring">Demo
+4</a>).</p>
+</blockquote>
+<p><a id="why-minreadlength"></a> <strong>Why Demos 1–4 pass
+<code>--minreadlength 100</code>.</strong> This is a short-read library:
+the mean read is 345 bp, and 76% of the reads are between 100 and 399
+bp. EMtrace's default minimum of 400 bp is tuned for raw MinKNOW output,
+where reads that short are mostly adapter and fragments, and it would
+discard three quarters of this library before annotation. The original
+authors had already filtered the deposit at 100 bp, so the demo matches
+that threshold and the reads enter the pipeline as deposited — the same
+setting used for this library in the <a href="#citing-emtrace">EMtrace
+manuscript</a>.</p>
+<p><a id="gut-microbiome-standard-demo-5"></a></p>
+<h3>ZymoBIOMICS Gut Microbiome Standard (Demo 5)</h3>
+<p>8,000 full-length 16S rRNA amplicon reads (8.9 MB; mean read 1.5 kb)
+of the <strong>ZymoBIOMICS Gut Microbiome Standard</strong> (D6331),
+from Oxford Nanopore's open dataset <code>zymo_16s_2025.09</code>:
+replicate 1 (flow cell FBB38036, barcode 07), SQK-MAB114.24, R10.4.1,
+basecalled by ONT with Dorado 1.1.1 (SUP model v5.2.0). They are the
+first 8,000 reads of the replicate by read start time — the first 17 min
+of sequencing — split into two files of 4,000:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">File</th>
+<th style="text-align: right;">Reads</th>
+<th style="text-align: left;">Sequencing time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>gutmock_r1_0.fastq.gz</code></td>
+<td style="text-align: right;">4,000</td>
+<td style="text-align: left;">0–9.4 min</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>gutmock_r1_1.fastq.gz</code></td>
+<td style="text-align: right;">4,000</td>
+<td style="text-align: left;">9.4–16.8 min</td>
+</tr>
+</tbody>
+</table>
+<br>
+
+<p>The standard is a defined mix of 14 bacterial species (five
+<em>Escherichia coli</em> strains among them), one archaeon and two
+yeasts. Its certificate gives the expected composition, so the result
+can be scored against a known answer. ONT publishes one basecalled BAM
+per replicate rather than MinKNOW's batch files, so the 4,000-read files
+were cut here from the reads sorted by start time, as in the <a
+href="#citing-emtrace">EMtrace manuscript</a>.</p>
+<p>Check the read lengths of your own libraries before lowering the
+default. <code>emtrace run</code> warns when many reads fall below the
+minimum.</p>
+<h2>Reproducing the manuscript</h2>
+<p>This demo is a small illustration, not the benchmark. To reproduce
+the figures and tables of the <a href="#citing-emtrace">EMtrace
+manuscript</a>, use <a
+href="https://github.com/weinstein-bioinfo/EMtrace-benchmark">EMtrace-benchmark</a>
+with EMtrace v1.0.0. The replays of both libraries are framework C
+(<code>jobs/framework_C/framework_C.replay.bash</code>; the gut standard
+as <code>gutmock_sup_r1</code>–<code>r4</code>), and their score tables
+are in <code>metrics/framework_C/</code>.</p>
+<p><a id="citing-emtrace"></a></p>
+<h2>Citing EMtrace</h2>
+<p>Weinstein I, Smura T, Leppanen O, Krupińska M, Vauhkonen H, Sironen
+T, Grzybek M, Vapalahti O, Kant R. EMtrace: offline nanopore
+metagenomics on a laptop for rapid viral diagnostics, genome recovery
+and 16S profiling. <em>bioRxiv</em> (2026). <a
+href="https://doi.org/10.64898/2026.11.09.765303">https://doi.org/10.64898/2026.11.09.765303</a></p>
+<h2>Citing the data</h2>
+<p>Ergünay, K. et al. Metagenomic nanopore sequencing of tick-borne
+pathogens and the virome of <em>Rhipicephalus bursa</em> ticks.
+<em>Front. Microbiol.</em> <strong>14</strong>, 1177651 (2023).
+BioProject PRJNA878809, run SRR21504617.</p>
+<p>Oxford Nanopore Technologies. ZymoBIOMICS Microbial Communities with
+16S amplicon (dataset zymo_16s_2025.09). <a
+href="https://epi2me.nanoporetech.com/zymo_16s_2025.09/">https://epi2me.nanoporetech.com/zymo_16s_2025.09/</a>
+(2025). <code>s3://ont-open-data/zymo_16s_2025.09</code>, GutMock
+replicate 1 (FBB38036, barcode 07).</p>
+</body>
+</html>
