@@ -64,10 +64,10 @@ From source (Python ≥ 3.10), with the external tools from Bioconda at the
 [tested versions](docs/UserGuide.v1.0.md#tested-versions) pinned in `environment.yml`:
 
 ```bash
-curl -LO https://raw.githubusercontent.com/weinstein-bioinfo/EMtrace/v1.0.5/environment.yml
+curl -LO https://raw.githubusercontent.com/weinstein-bioinfo/EMtrace/v1.0.6/environment.yml
 conda env create -f environment.yml          # external tools, tested versions
 conda activate emtrace
-pip install "emtrace[gui,plots,excel] @ git+https://github.com/weinstein-bioinfo/EMtrace.git@v1.0.5"
+pip install "emtrace[gui,plots,excel] @ git+https://github.com/weinstein-bioinfo/EMtrace.git@v1.0.6"
 emtrace --help
 ```
 

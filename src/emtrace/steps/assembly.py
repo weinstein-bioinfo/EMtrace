@@ -59,6 +59,12 @@ from emtrace.utils.entrez import EntrezFetch
 # of every allele at that position.
 _AF = "(INFO/AD[1])/(INFO/DP)"
 
+# Final mapping files: results read by report, plot, pack and the GUI's
+# Assembly view, so the clean step keeps them (and their .bai indexes).
+REFGEN_BAM = "reads.refgen.md.bam"
+POLISHED_BAM = "reads.polished.md.bam"
+FINAL_BAMS = (REFGEN_BAM, POLISHED_BAM)
+
 
 def build_vcf_filters(config: AssemblyConfig) -> tuple[str, str]:
     """Build the (report, consensus) bcftools filter expressions.
@@ -187,7 +193,7 @@ class AssemblyStep(PipelineStep):
         # Output paths
         sam_file = asm_dir / "reads.refgen.sam"
         bam_file = asm_dir / "reads.refgen.bam"
-        md_bam = asm_dir / "reads.refgen.md.bam"
+        md_bam = asm_dir / REFGEN_BAM
         lowcov_bed = asm_dir / "reads.refgen.lowcovmask.bed"
         refgen_masked = asm_dir / "refgen.lowcovmasked.fa"
         vcf_file = asm_dir / "vcf.gz"
@@ -195,7 +201,7 @@ class AssemblyStep(PipelineStep):
 
         # medaka outputs too, so a run without polishing leaves no stale ones
         polish_outputs = [asm_dir / n for n in (
-            "consensus.bcftools.fa", "reads.polished.md.bam", "reads.polished.md.bam.bai",
+            "consensus.bcftools.fa", POLISHED_BAM, f"{POLISHED_BAM}.bai",
             "reads.polished.lowcovmask.bed", "consensus.medaka.unmasked.fa")]
         for f in [sam_file, bam_file, md_bam, lowcov_bed, refgen_masked, vcf_file, consensus,
                   *polish_outputs]:
@@ -339,7 +345,7 @@ class AssemblyStep(PipelineStep):
         draft = asm_dir / "consensus.draft.fa"
         hdf = asm_dir / "medaka.hdf"
         polished = asm_dir / "consensus.medaka.unmasked.fa"
-        pol_bam = asm_dir / "reads.polished.md.bam"
+        pol_bam = asm_dir / POLISHED_BAM
         pol_bed = asm_dir / "reads.polished.lowcovmask.bed"
         log = sample.log_path / f"{sample.name}.medaka.log"
         for f in (bcf_consensus, draft, hdf, polished, pol_bam, pol_bed):

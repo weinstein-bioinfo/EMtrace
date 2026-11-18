@@ -296,7 +296,7 @@ terminal:</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">xattr</span> <span class="at">-dr</span> com.apple.quarantine /Applications/EMtrace.app</span></code></pre></div>
 <p>Each release lists SHA-256 checksums of the bundles. To check a
 download:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">shasum</span> <span class="at">-a</span> 256 EMtrace-macos-arm64-1.0.5.dmg</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">shasum</span> <span class="at">-a</span> 256 EMtrace-macos-arm64-1.0.6.dmg</span></code></pre></div>
 <p><a id="building-from-source"></a></p>
 <h3 id="building-from-source">Building from source</h3>
 <p>EMtrace is a standard Python package (Python ≥ 3.10). Clone the
@@ -402,7 +402,7 @@ repository&#39;s top folder, which pins the <a href="#tested-versions">tested ve
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="ex">conda</span> activate emtrace</span></code></pre></div>
 <p>Without a clone of the repository, download the file of your release
 first:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-LO</span> https://raw.githubusercontent.com/weinstein-bioinfo/EMtrace/v1.0.5/environment.yml</span></code></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-LO</span> https://raw.githubusercontent.com/weinstein-bioinfo/EMtrace/v1.0.6/environment.yml</span></code></pre></div>
 <p><strong>Installation time.</strong> On the laptop of the <a href="#system-requirements">System requirements</a>, with empty package
 caches, creating the environment took about 30 s and
 <code>pip install &quot;.[gui,plots,excel]&quot;</code> about 1 min. Database
@@ -1407,6 +1407,8 @@ an existing annotation without repeating the search:
 
 <div class="sourceCode" id="cb16"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">emtrace</span> run <span class="at">--reads</span> barcode01.fastq.gz <span class="at">--sample</span> barcode01 <span class="dt">\</span></span>
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--res</span> ./EMtrace-projects/run01 <span class="at">--pipe</span> rep,pack</span></code></pre></div>
+<p><strong>clean</strong> removes intermediate files such as SAM files
+and unsorted BAMs.</p>
 <p><strong>Pre-building host-filter indices.</strong> When background
 filtering with <em>Minimap2</em>
 (<code>bgfilter.minimap.save_mmi_index: true</code>), the host genome is

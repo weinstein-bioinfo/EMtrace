@@ -6,6 +6,8 @@ parent directory of ``sample.reports_dir``.
 
 CleanStep: removes intermediate BAM, SAM and temp files that are no
 longer needed after packing, and the intermediates of watch-mode batches.
+The final assembly BAMs (``FINAL_BAMS``) and their indexes are results, not
+intermediates: report, plot, pack and the GUI's Assembly view read them.
 
 Configuration (from ``config.output``):
     pack_reads    — include all reads/ directory (default 0 / False)
@@ -27,6 +29,7 @@ from emtrace.realtime.finalize import (
     resume_tables,
 )
 from emtrace.steps import StepName, register_step
+from emtrace.steps.assembly import FINAL_BAMS
 from emtrace.steps.base import PipelineStep
 
 if TYPE_CHECKING:
@@ -138,7 +141,10 @@ class PackStep(PipelineStep):
 
 @register_step(StepName.CLEAN)
 class CleanStep(PipelineStep):
-    """Remove intermediate files no longer needed after packing."""
+    """Remove intermediate files no longer needed after packing.
+
+    Keeps the final assembly BAMs and their ``.bai`` indexes.
+    """
 
     step_name = "clean"
     step_description = "Remove intermediate pipeline files"
@@ -168,12 +174,14 @@ class CleanStep(PipelineStep):
                 except OSError as exc:
                     self.logger.warning("Could not remove %s: %s", d, exc)
 
-        # Intermediate alignment files in assembly_dir
+        # Intermediate alignment files in assembly_dir; the final BAMs stay
         asm_dir = job.assembly_dir
+        keep_asm = {n for b in FINAL_BAMS for n in (b, f"{b}.bai")}
         if asm_dir.exists():
             for pattern in ("*.bam", "*.bai", "*.sam", "*.raw.gz"):
                 for p in asm_dir.glob(pattern):
-                    _try_unlink(p)
+                    if p.name not in keep_asm:
+                        _try_unlink(p)
 
         # Temporary reads files
         reads_dir = job.reads_dir

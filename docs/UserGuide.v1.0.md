@@ -153,7 +153,7 @@ xattr -dr com.apple.quarantine /Applications/EMtrace.app
 Each release lists SHA-256 checksums of the bundles. To check a download:
 
 ```bash
-shasum -a 256 EMtrace-macos-arm64-1.0.5.dmg
+shasum -a 256 EMtrace-macos-arm64-1.0.6.dmg
 ```
 
 <a id="building-from-source"></a>
@@ -220,7 +220,7 @@ conda activate emtrace
 Without a clone of the repository, download the file of your release first:
 
 ```bash
-curl -LO https://raw.githubusercontent.com/weinstein-bioinfo/EMtrace/v1.0.5/environment.yml
+curl -LO https://raw.githubusercontent.com/weinstein-bioinfo/EMtrace/v1.0.6/environment.yml
 ```
 
 **Installation time.** On the laptop of the
@@ -805,6 +805,8 @@ an existing annotation without repeating the search:
 emtrace run --reads barcode01.fastq.gz --sample barcode01 \
   --res ./EMtrace-projects/run01 --pipe rep,pack
 ```
+
+**clean** removes intermediate files such as SAM files and unsorted BAMs.
 
 **Pre-building host-filter indices.** When background filtering with *Minimap2*
 (`bgfilter.minimap.save_mmi_index: true`), the host genome is indexed to a `.mmi`
